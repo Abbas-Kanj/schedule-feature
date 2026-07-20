@@ -1,0 +1,39 @@
+/* Theme react-multi-select-component (any <MultiSelect>) to match the shadcn palette. */
+html .rmsc {
+  --rmsc-main: var(--ring);
+  --rmsc-hover: var(--accent);
+  --rmsc-selected: color-mix(in oklch, var(--primary) 12%, var(--accent));
+  --rmsc-border: var(--input);
+  --rmsc-gray: var(--muted-foreground);
+  --rmsc-bg: var(--background);
+  --rmsc-p: 0.625rem;
+  --rmsc-radius: var(--radius-md);
+  --rmsc-h: 2.25rem;
+}
+
+html .rmsc .dropdown-container {
+  color: var(--foreground);
+  font-size: 0.875rem;
+}
+
+html .rmsc .dropdown-container:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+}
+
+html .rmsc .dropdown-content .panel-content {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+}
+
+html .rmsc .options {
+  color: var(--popover-foreground);
+}
+
+html .rmsc .search input {
+  color: var(--foreground);
+}
+
+html .rmsc .item-renderer input {
+  accent-color: var(--primary);
+}

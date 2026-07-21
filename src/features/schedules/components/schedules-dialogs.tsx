@@ -1,7 +1,6 @@
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { useSchedulesStore } from '../stores/schedules-store'
-import SchedulesEditDialog from './schedules-edit-dailog'
 import { useSchedules } from './schedules-provider'
 
 export function SchedulesDialogs() {
@@ -12,18 +11,6 @@ export function SchedulesDialogs() {
     <>
       {currentRow && (
         <>
-          <SchedulesEditDialog
-            key={`schedule-edit-${currentRow.id}`}
-            open={open === 'edit'}
-            onOpenChange={() => {
-              setOpen('edit')
-              setTimeout(() => {
-                setCurrentRow(null)
-              }, 500)
-            }}
-            currentRow={currentRow}
-          />
-
           <ConfirmDialog
             key='schedule-delete'
             destructive

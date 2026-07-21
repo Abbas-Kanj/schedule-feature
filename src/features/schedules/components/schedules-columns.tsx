@@ -1,13 +1,14 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
+import { SCHEDULE_TYPES } from '../data/data'
 import { type Schedule } from '../data/schema'
 import { getScheduleSummary, getScheduleTotalHours } from '../utils'
 import { DataTableRowActions } from './data-table-row-actions'
 
 const typeVariant: Record<Schedule['type'], 'default' | 'secondary' | 'outline'> = {
-  daily: 'default',
-  weekly: 'secondary',
+  weekly: 'default',
+  weekly_one: 'secondary',
   monthly: 'outline',
 }
 
@@ -31,11 +32,8 @@ export const schedulesColumns: ColumnDef<Schedule>[] = [
     ),
     cell: ({ row }) => {
       const type = row.getValue<Schedule['type']>('type')
-      return (
-        <Badge variant={typeVariant[type]} className='capitalize'>
-          {type}
-        </Badge>
-      )
+      const label = SCHEDULE_TYPES.find((t) => t.value === type)?.label ?? type
+      return <Badge variant={typeVariant[type]}>{label}</Badge>
     },
   },
   {

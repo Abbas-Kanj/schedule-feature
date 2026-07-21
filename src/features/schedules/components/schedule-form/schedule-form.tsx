@@ -1,5 +1,5 @@
-import { zodResolver } from '@hookform/resolvers/zod'
 import { type Control, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Form,
   FormControl,
@@ -12,29 +12,32 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { SCHEDULE_TYPES } from '../../data/data'
-import { type Schedule, type ScheduleType, scheduleSchema } from '../../data/schema'
+import {
+  type Schedule,
+  type ScheduleType,
+  scheduleSchema,
+} from '../../data/schema'
 import { generateId } from '../../utils'
-import { DailyFields } from './daily-fields'
 import { EmployeeMultiSelect } from './employee-multi-select'
 import { MonthlyFields } from './monthly-fields'
 import { WeeklyFields } from './weekly-fields'
+import { WeeklyOneFields } from './weekly-one-fields'
 
 const now = new Date()
 
 function getTypeDefaults(type: ScheduleType) {
   switch (type) {
-    case 'daily':
-      return {
-        type: 'daily' as const,
-        day: 'monday' as const,
-        times: [{ from_time: '09:00', to_time: '17:00' }],
-      }
     case 'weekly':
       return {
         type: 'weekly' as const,
         year: now.getFullYear(),
         month: now.getMonth() + 1,
         week: { start_date: '', end_date: '' },
+        days: [],
+      }
+    case 'weekly_one':
+      return {
+        type: 'weekly_one' as const,
         days: [],
       }
     case 'monthly':
@@ -49,18 +52,17 @@ function getTypeDefaults(type: ScheduleType) {
 type ScheduleFormProps = {
   defaultValues?: Schedule
   onSubmit: (values: Schedule) => void
-  formId?: string
   disabled?: boolean
 }
 
 export function ScheduleForm({
   defaultValues,
   onSubmit,
-  formId = 'schedule-form',
   disabled = false,
 }: ScheduleFormProps) {
   const form = useForm<Schedule>({
     resolver: zodResolver(scheduleSchema),
+    mode: 'onChange',
     defaultValues:
       defaultValues ??
       ({
@@ -68,7 +70,7 @@ export function ScheduleForm({
         name: '',
         description: '',
         employees: [],
-        ...getTypeDefaults('daily'),
+        ...getTypeDefaults('weekly'),
       } as Schedule),
   })
 
@@ -94,7 +96,7 @@ export function ScheduleForm({
   return (
     <Form {...form}>
       <form
-        id={formId}
+        id={'schedule-form'}
         onSubmit={form.handleSubmit(onSubmit)}
         className='space-y-6'
       >
@@ -148,10 +150,8 @@ export function ScheduleForm({
           </Tabs>
         </FormItem>
 
-        {type === 'daily' && (
-          <DailyFields control={looseControl} disabled={disabled} />
-        )}
         {type === 'weekly' && <WeeklyFields disabled={disabled} />}
+        {type === 'weekly_one' && <WeeklyOneFields disabled={disabled} />}
         {type === 'monthly' && <MonthlyFields disabled={disabled} />}
       </form>
     </Form>

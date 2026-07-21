@@ -27,12 +27,6 @@ const dayScheduleSchema = z.object({
   times: z.array(timeRangeSchema).min(1, 'Add at least one time range'),
 })
 
-const dailyScheduleSchema = z.object({
-  type: z.literal('daily'),
-  day: daySchema,
-  times: z.array(timeRangeSchema).min(1, 'Add at least one time range'),
-})
-
 const weeklyScheduleSchema = z.object({
   type: z.literal('weekly'),
   year: z.number(),
@@ -41,6 +35,17 @@ const weeklyScheduleSchema = z.object({
     start_date: z.string(),
     end_date: z.string(),
   }),
+  days: z
+    .array(dayScheduleSchema)
+    .min(1, 'Select at least one day')
+    .max(7)
+    .refine((days) => new Set(days.map((d) => d.day)).size === days.length, {
+      message: 'Each day can only be selected once',
+    }),
+})
+
+const weeklyOneScheduleSchema = z.object({
+  type: z.literal('weekly_one'),
   days: z
     .array(dayScheduleSchema)
     .min(1, 'Select at least one day')
@@ -92,8 +97,8 @@ const commonScheduleSchema = z.object({
 
 export const scheduleSchema = z
   .discriminatedUnion('type', [
-    dailyScheduleSchema,
     weeklyScheduleSchema,
+    weeklyOneScheduleSchema,
     monthlyScheduleSchema,
   ])
   .and(commonScheduleSchema)

@@ -42,6 +42,7 @@ import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_auth
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedSchedulesNewIndexRouteImport } from './routes/_authenticated/schedules/new/index'
 import { Route as AuthenticatedSchedulesScheduleIdIndexRouteImport } from './routes/_authenticated/schedules/$scheduleId/index'
+import { Route as AuthenticatedSchedulesScheduleIdEditIndexRouteImport } from './routes/_authenticated/schedules/$scheduleId/edit/index'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -217,6 +218,12 @@ const AuthenticatedSchedulesScheduleIdIndexRoute =
     path: '/schedules/$scheduleId/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedSchedulesScheduleIdEditIndexRoute =
+  AuthenticatedSchedulesScheduleIdEditIndexRouteImport.update({
+    id: '/schedules/$scheduleId/edit/',
+    path: '/schedules/$scheduleId/edit/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -249,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/schedules/$scheduleId/': typeof AuthenticatedSchedulesScheduleIdIndexRoute
   '/schedules/new/': typeof AuthenticatedSchedulesNewIndexRoute
+  '/schedules/$scheduleId/edit/': typeof AuthenticatedSchedulesScheduleIdEditIndexRoute
 }
 export interface FileRoutesByTo {
   '/clerk': typeof ClerkAuthenticatedRouteRouteWithChildren
@@ -280,6 +288,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersIndexRoute
   '/schedules/$scheduleId': typeof AuthenticatedSchedulesScheduleIdIndexRoute
   '/schedules/new': typeof AuthenticatedSchedulesNewIndexRoute
+  '/schedules/$scheduleId/edit': typeof AuthenticatedSchedulesScheduleIdEditIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -316,6 +325,7 @@ export interface FileRoutesById {
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/schedules/$scheduleId/': typeof AuthenticatedSchedulesScheduleIdIndexRoute
   '/_authenticated/schedules/new/': typeof AuthenticatedSchedulesNewIndexRoute
+  '/_authenticated/schedules/$scheduleId/edit/': typeof AuthenticatedSchedulesScheduleIdEditIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -350,6 +360,7 @@ export interface FileRouteTypes {
     | '/users/'
     | '/schedules/$scheduleId/'
     | '/schedules/new/'
+    | '/schedules/$scheduleId/edit/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/clerk'
@@ -381,6 +392,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/schedules/$scheduleId'
     | '/schedules/new'
+    | '/schedules/$scheduleId/edit'
   id:
     | '__root__'
     | '/_authenticated'
@@ -416,6 +428,7 @@ export interface FileRouteTypes {
     | '/_authenticated/users/'
     | '/_authenticated/schedules/$scheduleId/'
     | '/_authenticated/schedules/new/'
+    | '/_authenticated/schedules/$scheduleId/edit/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -666,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSchedulesScheduleIdIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/schedules/$scheduleId/edit/': {
+      id: '/_authenticated/schedules/$scheduleId/edit/'
+      path: '/schedules/$scheduleId/edit'
+      fullPath: '/schedules/$scheduleId/edit/'
+      preLoaderRoute: typeof AuthenticatedSchedulesScheduleIdEditIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -704,6 +724,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedSchedulesScheduleIdIndexRoute: typeof AuthenticatedSchedulesScheduleIdIndexRoute
   AuthenticatedSchedulesNewIndexRoute: typeof AuthenticatedSchedulesNewIndexRoute
+  AuthenticatedSchedulesScheduleIdEditIndexRoute: typeof AuthenticatedSchedulesScheduleIdEditIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -719,6 +740,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedSchedulesScheduleIdIndexRoute:
     AuthenticatedSchedulesScheduleIdIndexRoute,
   AuthenticatedSchedulesNewIndexRoute: AuthenticatedSchedulesNewIndexRoute,
+  AuthenticatedSchedulesScheduleIdEditIndexRoute:
+    AuthenticatedSchedulesScheduleIdEditIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

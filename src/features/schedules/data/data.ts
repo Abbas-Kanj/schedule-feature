@@ -21,7 +21,7 @@ export const MONTHS = [
 ]
 
 export const SCHEDULE_TYPES = [
-  { value: 'daily', label: 'Daily' },
   { value: 'weekly', label: 'Weekly' },
+  { value: 'weekly_one', label: 'Weekly One' },
   { value: 'monthly', label: 'Monthly' },
 ] as const

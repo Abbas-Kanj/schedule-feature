@@ -7,11 +7,29 @@ export const defaultSchedules: Schedule[] = [
     name: 'Front Desk Coverage',
     description: 'Reception coverage split across the morning and afternoon.',
     employees: [employees[0], employees[1]],
-    type: 'daily',
-    day: 'monday',
-    times: [
-      { from_time: '09:00', to_time: '13:00' },
-      { from_time: '14:00', to_time: '17:00' },
+    type: 'weekly_one',
+    days: [
+      {
+        day: 'monday',
+        times: [
+          { from_time: '09:00', to_time: '13:00' },
+          { from_time: '14:00', to_time: '17:00' },
+        ],
+      },
+      {
+        day: 'wednesday',
+        times: [
+          { from_time: '09:00', to_time: '13:00' },
+          { from_time: '14:00', to_time: '17:00' },
+        ],
+      },
+      {
+        day: 'friday',
+        times: [
+          { from_time: '09:00', to_time: '13:00' },
+          { from_time: '14:00', to_time: '17:00' },
+        ],
+      },
     ],
   },
   {

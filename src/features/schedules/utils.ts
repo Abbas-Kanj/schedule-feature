@@ -53,11 +53,7 @@ function capitalize(value: string) {
 }
 
 export function getScheduleTotalHours(schedule: Schedule): number {
-  if (schedule.type === 'daily') {
-    return calculateHours(schedule.times)
-  }
-
-  if (schedule.type === 'weekly') {
+  if (schedule.type === 'weekly' || schedule.type === 'weekly_one') {
     return schedule.days.reduce(
       (sum, d) => sum + calculateHours(d.times),
       0
@@ -72,15 +68,15 @@ export function getScheduleTotalHours(schedule: Schedule): number {
 }
 
 export function getScheduleSummary(schedule: Schedule): string {
-  if (schedule.type === 'daily') {
-    const hours = calculateHours(schedule.times)
-    const rangeCount = schedule.times.length
-    return `${capitalize(schedule.day)} · ${rangeCount} range${rangeCount > 1 ? 's' : ''} · ${hours}h`
-  }
-
   if (schedule.type === 'weekly') {
     const dayCount = schedule.days.length
     return `Week of ${schedule.week.start_date} to ${schedule.week.end_date} · ${dayCount} day${dayCount > 1 ? 's' : ''}`
+  }
+
+  if (schedule.type === 'weekly_one') {
+    const dayCount = schedule.days.length
+    const dayNames = schedule.days.map((d) => capitalize(d.day)).join(', ')
+    return `${dayNames} · ${dayCount} day${dayCount > 1 ? 's' : ''}`
   }
 
   const monthCount = schedule.months.length

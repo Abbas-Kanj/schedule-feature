@@ -38,7 +38,12 @@ export function TimeRangeFields({
             render={({ field }) => (
               <FormItem className='flex-1'>
                 <FormControl>
-                  <Input type='time' disabled={disabled} {...field} />
+                  <Input
+                    type='time'
+                    disabled={disabled}
+                    max={times[index]?.to_time || undefined}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -51,7 +56,12 @@ export function TimeRangeFields({
             render={({ field }) => (
               <FormItem className='flex-1'>
                 <FormControl>
-                  <Input type='time' disabled={disabled} {...field} />
+                  <Input
+                    type='time'
+                    disabled={disabled}
+                    min={times[index]?.from_time || undefined}
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

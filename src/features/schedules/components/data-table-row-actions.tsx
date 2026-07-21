@@ -36,23 +36,26 @@ export function DataTableRowActions<TData>({
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-32'>
         <DropdownMenuItem asChild>
-          <Link to='/schedules/$scheduleId' params={{ scheduleId: schedule.id }}>
+          <Link
+            to='/schedules/$scheduleId'
+            params={{ scheduleId: schedule.id }}
+          >
             View
             <DropdownMenuShortcut>
               <Eye size={16} />
             </DropdownMenuShortcut>
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={() => {
-            setCurrentRow(schedule)
-            setOpen('edit')
-          }}
-        >
-          Edit
-          <DropdownMenuShortcut>
-            <Pencil size={16} />
-          </DropdownMenuShortcut>
+        <DropdownMenuItem asChild>
+          <Link
+            to='/schedules/$scheduleId/edit'
+            params={{ scheduleId: schedule.id }}
+          >
+            Edit
+            <DropdownMenuShortcut>
+              <Pencil size={16} />
+            </DropdownMenuShortcut>
+          </Link>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {

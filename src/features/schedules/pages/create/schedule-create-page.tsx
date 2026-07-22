@@ -1,17 +1,17 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
 import { Main } from '@/components/layout/main'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Button } from '@/components/ui/button'
-import { type Schedule } from '../data/schema'
-import { useSchedulesStore } from '../stores/schedules-store'
-import { generateId } from '../utils'
-import { ScheduleForm } from './schedule-form/schedule-form'
+import { ScheduleForm } from '../../components/schedule-form/schedule-form'
+import { type Schedule } from '../../data/schema'
+import { useSchedulesStore } from '../../stores/schedules-store'
+import { generateId } from '../../utils'
 
 const FORM_ID = 'schedule-create-form'
 
@@ -53,7 +53,7 @@ export function ScheduleCreatePage() {
             Save schedule
           </Button>
         </div>
-        <ScheduleForm onSubmit={handleSubmit} formId={FORM_ID} />
+        <ScheduleForm onSubmit={handleSubmit} />
       </Main>
     </>
   )

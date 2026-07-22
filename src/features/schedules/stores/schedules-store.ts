@@ -1,6 +1,7 @@
+import { z } from 'zod'
 import { create } from 'zustand'
 import { defaultSchedules } from '../data/schedules'
-import { type Schedule } from '../data/schema'
+import { type Schedule, scheduleSchema } from '../data/schema'
 
 const STORAGE_KEY = 'schedules'
 
@@ -9,7 +10,8 @@ function readStoredSchedules(): Schedule[] {
   if (!raw) return defaultSchedules
 
   try {
-    return JSON.parse(raw) as Schedule[]
+    const result = z.array(scheduleSchema).safeParse(JSON.parse(raw))
+    return result.success ? result.data : defaultSchedules
   } catch {
     return defaultSchedules
   }

@@ -1,4 +1,4 @@
-import { DAYS_OF_WEEK } from './schema'
+import { DAYS_OF_WEEK, POLICY_TYPES } from './schema'
 
 export const DAY_OPTIONS = DAYS_OF_WEEK.map((day) => ({
   value: day,
@@ -25,3 +25,8 @@ export const SCHEDULE_TYPES = [
   { value: 'weekly_one', label: 'Weekly One' },
   { value: 'monthly', label: 'Monthly' },
 ] as const
+
+export const POLICY_TYPE_OPTIONS = POLICY_TYPES.map((value) => ({
+  value,
+  label: value.charAt(0).toUpperCase() + value.slice(1),
+}))

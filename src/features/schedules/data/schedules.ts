@@ -6,7 +6,9 @@ export const defaultSchedules: Schedule[] = [
     id: 'sched-1',
     name: 'Front Desk Coverage',
     description: 'Reception coverage split across the morning and afternoon.',
+    policy_type: 'standard',
     employees: [employees[0], employees[1]],
+    parent_type: 'daily',
     type: 'weekly_one',
     days: [
       {
@@ -36,7 +38,9 @@ export const defaultSchedules: Schedule[] = [
     id: 'sched-2',
     name: 'Warehouse Shift',
     description: 'Weekly warehouse coverage for the middle week of July.',
+    policy_type: 'flexible',
     employees: [employees[2], employees[3], employees[4]],
+    parent_type: 'daily',
     type: 'weekly',
     year: 2026,
     month: 7,
@@ -60,7 +64,9 @@ export const defaultSchedules: Schedule[] = [
     id: 'sched-3',
     name: 'Quarterly Audit',
     description: 'On-site audit support across two months.',
+    policy_type: 'strict',
     employees: [employees[5]],
+    parent_type: 'daily',
     type: 'monthly',
     year: 2026,
     months: [

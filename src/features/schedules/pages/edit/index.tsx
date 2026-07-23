@@ -9,7 +9,7 @@ import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
 import { ScheduleForm } from '../../components/schedule-form/schedule-form'
-import { Schedule } from '../../data/schema'
+import { type Schedule } from '../../data/schema'
 import { useSchedulesStore } from '../../stores/schedules-store'
 
 export function ScheduleEditPage() {
@@ -48,11 +48,11 @@ export function ScheduleEditPage() {
           </Button>
           <h2 className='text-2xl font-bold tracking-tight'>Edit schedule</h2>
         </div>
-        <ScheduleForm defaultValues={schedule} onSubmit={handleSubmit} />
-
-        <Button className='w-fit place-self-end' type='submit'>
-          Save changes
-        </Button>
+        <ScheduleForm
+          defaultValues={schedule}
+          onSubmit={handleSubmit}
+          submitLabel='Save changes'
+        />
       </Main>
     </>
   )

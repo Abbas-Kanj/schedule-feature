@@ -2,11 +2,11 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { DataTableColumnHeader } from '@/components/data-table'
 import { SCHEDULE_TYPES } from '../data/data'
-import { type Schedule } from '../data/schema'
+import { type Schedule, type ScheduleType } from '../data/schema'
 import { getScheduleSummary, getScheduleTotalHours } from '../utils'
 import { DataTableRowActions } from './data-table-row-actions'
 
-const typeVariant: Record<Schedule['type'], 'default' | 'secondary' | 'outline'> = {
+const typeVariant: Record<ScheduleType, 'default' | 'secondary' | 'outline'> = {
   weekly: 'default',
   weekly_one: 'secondary',
   monthly: 'outline',
@@ -26,14 +26,20 @@ export const schedulesColumns: ColumnDef<Schedule>[] = [
     ),
   },
   {
-    accessorKey: 'type',
+    id: 'type',
+    accessorFn: (row) => (row.parent_type === 'daily' ? row.type : 'regular'),
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title='Type' />
     ),
     cell: ({ row }) => {
-      const type = row.getValue<Schedule['type']>('type')
-      const label = SCHEDULE_TYPES.find((t) => t.value === type)?.label ?? type
-      return <Badge variant={typeVariant[type]}>{label}</Badge>
+      const schedule = row.original
+      if (schedule.parent_type === 'regular') {
+        return <Badge variant='outline'>Regular</Badge>
+      }
+      const label =
+        SCHEDULE_TYPES.find((t) => t.value === schedule.type)?.label ??
+        schedule.type
+      return <Badge variant={typeVariant[schedule.type]}>{label}</Badge>
     },
   },
   {
@@ -54,6 +60,9 @@ export const schedulesColumns: ColumnDef<Schedule>[] = [
     meta: { className: 'w-1/6', tdClassName: 'max-w-0' },
     cell: ({ row }) => {
       const schedule = row.original
+      if (schedule.parent_type === 'regular') {
+        return <span className='text-muted-foreground text-sm'>—</span>
+      }
       const names = schedule.employees.map((e) => e.label)
       return (
         <span className='text-muted-foreground block truncate text-sm'>

@@ -53,11 +53,13 @@ function capitalize(value: string) {
 }
 
 export function getScheduleTotalHours(schedule: Schedule): number {
+  if (schedule.parent_type === 'regular') return 0
+
   if (schedule.type === 'weekly' || schedule.type === 'weekly_one') {
     return schedule.days.reduce((sum, d) => sum + calculateHours(d.times), 0)
   }
 
-  return schedule.months?.reduce(
+  return schedule.months.reduce(
     (sum, m) =>
       sum + m.days.reduce((daySum, d) => daySum + calculateHours(d.times), 0),
     0
@@ -65,6 +67,10 @@ export function getScheduleTotalHours(schedule: Schedule): number {
 }
 
 export function getScheduleSummary(schedule: Schedule): string {
+  if (schedule.parent_type === 'regular') {
+    return `Shift ${schedule.shift_number} · Split ${schedule.split_number}`
+  }
+
   if (schedule.type === 'weekly') {
     const dayCount = schedule.days.length
     return `Week of ${schedule.week.start_date} to ${schedule.week.end_date} · ${dayCount} day${dayCount > 1 ? 's' : ''}`
@@ -76,7 +82,7 @@ export function getScheduleSummary(schedule: Schedule): string {
     return `${dayNames} · ${dayCount} day${dayCount > 1 ? 's' : ''}`
   }
 
-  const monthCount = schedule.months?.length
-  const dayCount = schedule.months?.reduce((sum, m) => sum + m.days.length, 0)
+  const monthCount = schedule.months.length
+  const dayCount = schedule.months.reduce((sum, m) => sum + m.days.length, 0)
   return `${monthCount} month${monthCount > 1 ? 's' : ''} · ${dayCount} day${dayCount > 1 ? 's' : ''}`
 }

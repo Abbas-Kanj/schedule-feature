@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { create } from 'zustand'
 import { defaultSchedules } from '../data/schedules'
 import { type Schedule, scheduleSchema } from '../data/schema'
+import { generateId } from '../utils'
 
 const STORAGE_KEY = 'schedules'
 
@@ -25,6 +26,7 @@ interface SchedulesState {
   schedules: Schedule[]
   addSchedule: (schedule: Schedule) => void
   updateSchedule: (id: string, schedule: Schedule) => void
+  cloneSchedule: (schedule: Schedule) => Schedule
   deleteSchedule: (id: string) => void
 }
 
@@ -47,6 +49,19 @@ export const useSchedulesStore = create<SchedulesState>()((set) => ({
       persist(schedules)
       return { schedules }
     }),
+  cloneSchedule: (schedule) => {
+    const cloned = {
+      ...schedule,
+      id: generateId(),
+      name: `${schedule.name} (copy)`,
+    }
+    set((state) => {
+      const schedules = [...state.schedules, cloned]
+      persist(schedules)
+      return { schedules }
+    })
+    return cloned
+  },
   deleteSchedule: (id) =>
     set((state) => {
       const schedules = state.schedules.filter((s) => s.id !== id)

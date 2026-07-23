@@ -1,7 +1,9 @@
 import { DotsHorizontalIcon } from '@radix-ui/react-icons'
 import { Link } from '@tanstack/react-router'
 import { type Row } from '@tanstack/react-table'
-import { Eye, Pencil, Trash2 } from 'lucide-react'
+import { router } from '@/main'
+import { Copy, Eye, Pencil, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -11,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { scheduleSchema } from '../data/schema'
+import { useSchedulesStore } from '../stores/schedules-store'
 import { useSchedules } from './schedules-provider'
 
 type DataTableRowActionsProps<TData> = {
@@ -22,6 +25,7 @@ export function DataTableRowActions<TData>({
 }: DataTableRowActionsProps<TData>) {
   const schedule = scheduleSchema.parse(row.original)
   const { setOpen, setCurrentRow } = useSchedules()
+  const store = useSchedulesStore()
 
   return (
     <DropdownMenu modal={false}>
@@ -56,6 +60,18 @@ export function DataTableRowActions<TData>({
               <Pencil size={16} />
             </DropdownMenuShortcut>
           </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => {
+            const clonedSchedule = store.cloneSchedule(schedule)
+            router.navigate({ to: `/schedules/${clonedSchedule.id}/edit` })
+            toast.success(`Schedule "${schedule.name}" has been cloned.`)
+          }}
+        >
+          Clone
+          <DropdownMenuShortcut>
+            <Copy size={16} />
+          </DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {

@@ -1,4 +1,10 @@
-import { DAYS_OF_WEEK, POLICY_TYPES } from './schema'
+import {
+  DAYS_OF_WEEK,
+  POLICY_TYPES,
+  SHIFT_CYCLES,
+  SHIFT_ROTATIONS_BY_CYCLE,
+  type ShiftCycle,
+} from './schema'
 
 export const DAY_OPTIONS = DAYS_OF_WEEK.map((day) => ({
   value: day,
@@ -30,3 +36,21 @@ export const POLICY_TYPE_OPTIONS = POLICY_TYPES.map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }))
+
+export const SHIFT_CYCLE_OPTIONS = SHIFT_CYCLES.map((value) => ({
+  value,
+  label: value.charAt(0).toUpperCase() + value.slice(1),
+}))
+
+const SHIFT_ROTATION_LABELS: Record<string, string> = {
+  right_shift: 'Right shift',
+  normal_rotation: 'Normal rotation',
+  no_rotation: 'No rotation',
+}
+
+export function getShiftRotationOptions(cycle: ShiftCycle) {
+  return SHIFT_ROTATIONS_BY_CYCLE[cycle].map((value) => ({
+    value,
+    label: SHIFT_ROTATION_LABELS[value],
+  }))
+}

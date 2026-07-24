@@ -106,17 +106,161 @@ const dailyScheduleSchema = z.discriminatedUnion('type', [
   monthlyScheduleSchema,
 ])
 
-const regularScheduleSchema = z.object({
-  parent_type: z.literal('regular'),
-  shift_number: z.number(),
-  split_number: z.number(),
+const singleShiftSchema = z
+  .object({
+    time: timeRangeSchema,
+    has_break: z.boolean(),
+    break_time: timeRangeSchema.optional(),
+  })
+  .refine((val) => !val.has_break || !!val.break_time, {
+    message: 'Add a break time range',
+    path: ['break_time'],
+  })
+
+const regularShiftDaySchema = z.object({
+  day: daySchema,
+  splits: z.array(timeRangeSchema).min(1, 'Add at least one time range'),
 })
+
+const regularShiftSchema = z
+  .object({
+    days: z
+      .array(regularShiftDaySchema)
+      .refine(
+        (days) => new Set(days.map((d) => d.day)).size === days.length,
+        { message: 'Each day can only be selected once' }
+      ),
+    has_break: z.boolean(),
+    break_hours: z.number().min(1).max(12).optional(),
+  })
+  .refine((val) => !val.has_break || val.break_hours != null, {
+    message: 'Set break hours',
+    path: ['break_hours'],
+  })
+
+export const SHIFT_CYCLES = ['weekly', 'alternative'] as const
+const shiftCycleSchema = z.enum(SHIFT_CYCLES)
+
+export const SHIFT_ROTATIONS = [
+  'right_shift',
+  'normal_rotation',
+  'no_rotation',
+] as const
+const shiftEmployeeRotationSchema = z.enum(SHIFT_ROTATIONS)
+
+export const SHIFT_ROTATIONS_BY_CYCLE: Record<
+  (typeof SHIFT_CYCLES)[number],
+  readonly (typeof SHIFT_ROTATIONS)[number][]
+> = {
+  weekly: ['right_shift', 'normal_rotation'],
+  alternative: ['right_shift', 'no_rotation'],
+}
+
+const regularScheduleSchema = z
+  .object({
+    parent_type: z.literal('regular'),
+    shift_number: z.number().min(1),
+    split_number: z.number().min(1),
+    single_shift: singleShiftSchema.optional(),
+    shifts: z.array(regularShiftSchema).optional(),
+    shift_cycle: shiftCycleSchema.optional(),
+    shift_employee_rotation: shiftEmployeeRotationSchema.optional(),
+    repeated_shift: z.number().min(1).max(3).optional(),
+    leave_hours: z.number().min(1).max(12).optional(),
+    official_holiday_hours: z.number().min(1).max(12).optional(),
+    policy_type: policyTypeSchema,
+  })
+  .superRefine((val, ctx) => {
+    const isSingle = val.shift_number === 1 && val.split_number === 1
+
+    if (isSingle) {
+      if (!val.single_shift) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Set the shift time',
+          path: ['single_shift'],
+        })
+      }
+      return
+    }
+
+    if (!val.shifts || val.shifts.length !== val.shift_number) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Configure all ${val.shift_number} shift(s)`,
+        path: ['shifts'],
+      })
+      return
+    }
+
+    val.shifts.forEach((shift, i) => {
+      if (shift.days.length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Select at least one day',
+          path: ['shifts', i, 'days'],
+        })
+      }
+      if (shift.days.length > val.shift_number) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Select at most ${val.shift_number} day(s)`,
+          path: ['shifts', i, 'days'],
+        })
+      }
+      shift.days.forEach((d, j) => {
+        if (d.splits.length !== val.split_number) {
+          ctx.addIssue({
+            code: 'custom',
+            message: `Add ${val.split_number} time range(s)`,
+            path: ['shifts', i, 'days', j, 'splits'],
+          })
+        }
+      })
+    })
+
+    if (val.shift_number > 1) {
+      if (!val.shift_cycle) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Select a shift cycle',
+          path: ['shift_cycle'],
+        })
+      }
+
+      if (!val.shift_employee_rotation) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Select a shift employee rotation',
+          path: ['shift_employee_rotation'],
+        })
+      } else if (
+        val.shift_cycle &&
+        !SHIFT_ROTATIONS_BY_CYCLE[val.shift_cycle].includes(
+          val.shift_employee_rotation
+        )
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Rotation is not valid for the selected shift cycle',
+          path: ['shift_employee_rotation'],
+        })
+      }
+
+      if (val.repeated_shift == null) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Set the repeated shift',
+          path: ['repeated_shift'],
+        })
+      }
+    }
+  })
 
 const commonScheduleSchema = z.object({
   id: z.string(),
   name: z.string().min(1, 'Name is required'),
   description: z.string(),
-  policy_type: policyTypeSchema,
 })
 
 export const scheduleSchema = z
@@ -132,3 +276,8 @@ export type DayOfWeek = (typeof DAYS_OF_WEEK)[number]
 export type TimeRange = z.infer<typeof timeRangeSchema>
 export type DaySchedule = z.infer<typeof dayScheduleSchema>
 export type PolicyType = z.infer<typeof policyTypeSchema>
+export type SingleShift = z.infer<typeof singleShiftSchema>
+export type RegularShift = z.infer<typeof regularShiftSchema>
+export type RegularShiftDay = z.infer<typeof regularShiftDaySchema>
+export type ShiftCycle = z.infer<typeof shiftCycleSchema>
+export type ShiftEmployeeRotation = z.infer<typeof shiftEmployeeRotationSchema>

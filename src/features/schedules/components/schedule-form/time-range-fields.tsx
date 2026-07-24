@@ -17,12 +17,16 @@ type TimeRangeFieldsProps = {
   control: Control<any>
   name: string
   disabled?: boolean
+  // When set, the range count is externally controlled (e.g. by a split
+  // number elsewhere in the form) so add/remove controls are hidden.
+  fixedCount?: boolean
 }
 
 export function TimeRangeFields({
   control,
   name,
   disabled,
+  fixedCount,
 }: TimeRangeFieldsProps) {
   const { fields, append, remove } = useFieldArray({ control, name })
   const times = (useWatch({ control, name }) as TimeRange[] | undefined) ?? []
@@ -67,7 +71,7 @@ export function TimeRangeFields({
               </FormItem>
             )}
           />
-          {!disabled && (
+          {!disabled && !fixedCount && (
             <Button
               type='button'
               variant='ghost'
@@ -82,7 +86,7 @@ export function TimeRangeFields({
         </div>
       ))}
       <div className='flex items-center justify-between'>
-        {!disabled && (
+        {!disabled && !fixedCount && (
           <Button
             type='button'
             variant='outline'

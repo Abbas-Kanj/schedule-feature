@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { type Control, useForm } from 'react-hook-form'
+import { type Control, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -13,7 +14,6 @@ import { Input } from '@/components/ui/input'
 import { type StepperStep, Stepper } from '@/components/ui/stepper'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
-import { Button } from '@/components/ui/button'
 import { MultiSelect } from '@/components/multi-select'
 import { POLICY_TYPE_OPTIONS, SCHEDULE_TYPES } from '../../data/data'
 import {
@@ -25,14 +25,22 @@ import {
 import { generateId } from '../../utils'
 import { EmployeeMultiSelect } from './employee-multi-select'
 import { MonthlyFields } from './monthly-fields'
+import { RegularShiftFields } from './regular-shift-fields'
+import { ScheduleSummary } from './schedule-summary'
 import { WeeklyFields } from './weekly-fields'
 import { WeeklyOneFields } from './weekly-one-fields'
 
-const STEPS: StepperStep[] = [
-  { id: 'basics', label: 'Basics' },
-  { id: 'type', label: 'Type' },
-  { id: 'policy', label: 'Policy' },
-]
+function getSteps(parentType: string): StepperStep[] {
+  const steps: StepperStep[] = [
+    { id: 'basics', label: 'Basics' },
+    { id: 'type', label: 'Type' },
+  ]
+  if (parentType === 'regular') {
+    steps.push({ id: 'policy', label: 'Policy' })
+  }
+  steps.push({ id: 'summary', label: 'Summary' })
+  return steps
+}
 
 const now = new Date()
 
@@ -71,6 +79,13 @@ function getRegularDefaults() {
     parent_type: 'regular' as const,
     shift_number: 1,
     split_number: 1,
+    single_shift: {
+      time: { from_time: '09:00', to_time: '17:00' },
+      has_break: false,
+    },
+    shifts: undefined,
+    leave_hours: 8,
+    official_holiday_hours: 8,
   }
 }
 
@@ -92,25 +107,34 @@ type ScheduleFormProps = {
   submitLabel?: string
 }
 
-// Field names to validate per step differ by parent/schedule type, so this
-// is computed loosely rather than typed against RHF's union field paths.
 function getStepFields(
-  step: number,
+  stepId: string,
   parentType: string,
-  type?: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  type?: string,
+  shiftNumber?: number,
+  splitNumber?: number
 ): any {
-  if (step === 0) {
+  if (stepId === 'basics') {
     return parentType === 'regular'
       ? ['name', 'description', 'parent_type', 'shift_number', 'split_number']
       : ['name', 'description', 'parent_type', 'employees']
   }
-  if (step === 1) {
-    if (parentType === 'regular') return []
+  if (stepId === 'type') {
+    if (parentType === 'regular') {
+      if (shiftNumber === 1 && splitNumber === 1) return ['single_shift']
+      const fields = ['shifts']
+      if ((shiftNumber ?? 0) > 1) {
+        fields.push('shift_cycle', 'shift_employee_rotation', 'repeated_shift')
+      }
+      return fields
+    }
     if (type === 'weekly') return ['type', 'year', 'month', 'week', 'days']
     if (type === 'weekly_one') return ['type', 'days']
     if (type === 'monthly') return ['type', 'year', 'months']
     return ['type']
+  }
+  if (stepId === 'policy') {
+    return ['policy_type']
   }
   return []
 }
@@ -134,19 +158,22 @@ export function ScheduleForm({
   })
 
   const [step, setStep] = useState(0)
-  const isLastStep = step === STEPS.length - 1
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const type = form.watch('type')
   const parentType = form.watch('parent_type')
-  // Branch fields differ per schedule type, so the shared field components
-  // take a loosely-typed control rather than fighting RHF's union typing.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const looseControl = form.control as unknown as Control<any>
+  const shiftNumber = useWatch({ control: looseControl, name: 'shift_number' })
+  const splitNumber = useWatch({ control: looseControl, name: 'split_number' })
+
+  const steps = getSteps(parentType)
+  const currentStepId = steps[step]?.id
+  const isLastStep = step === steps.length - 1
 
   const handleNext = async () => {
-    const valid = await form.trigger(getStepFields(step, parentType, type))
-    if (valid) setStep((s) => Math.min(s + 1, STEPS.length - 1))
+    const valid = await form.trigger(
+      getStepFields(currentStepId, parentType, type, shiftNumber, splitNumber)
+    )
+    if (valid) setStep((s) => Math.min(s + 1, steps.length - 1))
   }
 
   const handleBack = () => setStep((s) => Math.max(s - 1, 0))
@@ -159,7 +186,6 @@ export function ScheduleForm({
       id: current.id,
       name: current.name,
       description: current.description,
-      policy_type: current.policy_type,
       ...(value === 'daily' ? getTypeDefaults('weekly') : getRegularDefaults()),
     } as Schedule)
   }
@@ -171,7 +197,6 @@ export function ScheduleForm({
       id: current.id,
       name: current.name,
       description: current.description,
-      policy_type: current.policy_type,
       ...getTypeDefaults(value as ScheduleType),
       employees: (current as DailySchedule).employees ?? [],
     } as Schedule)
@@ -190,9 +215,9 @@ export function ScheduleForm({
         }}
         className='space-y-6'
       >
-        {!disabled && <Stepper steps={STEPS} currentStep={step} />}
+        {!disabled && <Stepper steps={steps} currentStep={step} />}
 
-        {(disabled || step === 0) && (
+        {(disabled || currentStepId === 'basics') && (
           <>
             <FormField
               control={form.control}
@@ -308,7 +333,7 @@ export function ScheduleForm({
           </>
         )}
 
-        {(disabled || step === 1) && (
+        {(disabled || currentStepId === 'type') && (
           <>
             {parentType === 'daily' && (
               <>
@@ -338,38 +363,87 @@ export function ScheduleForm({
             )}
 
             {parentType === 'regular' && (
-              <p className='text-muted-foreground text-sm'>
-                Regular schedule type configuration coming soon.
-              </p>
+              <RegularShiftFields disabled={disabled} />
             )}
           </>
         )}
 
-        {(disabled || step === 2) && (
-          <FormField
-            control={form.control}
-            name='policy_type'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Policy type</FormLabel>
-                <FormControl>
-                  <MultiSelect
-                    options={POLICY_TYPE_OPTIONS}
-                    value={
-                      POLICY_TYPE_OPTIONS.find(
-                        (o) => o.value === field.value
-                      ) ?? null
-                    }
-                    onChange={(opt: { value: string } | null) =>
-                      field.onChange(opt?.value ?? '')
-                    }
-                    isDisabled={disabled}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {((disabled && parentType === 'regular') ||
+          currentStepId === 'policy') && (
+          <>
+            <FormField
+              control={form.control}
+              name='policy_type'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Policy type</FormLabel>
+                  <FormControl>
+                    <MultiSelect
+                      options={POLICY_TYPE_OPTIONS}
+                      value={
+                        POLICY_TYPE_OPTIONS.find(
+                          (o) => o.value === field.value
+                        ) ?? null
+                      }
+                      onChange={(opt: { value: string } | null) =>
+                        field.onChange(opt?.value ?? '')
+                      }
+                      isDisabled={disabled}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='leave_hours'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Leave equivalent hours per day</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={12}
+                      disabled={disabled}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='official_holiday_hours'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>
+                    Official holiday equivalent hours per day
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={12}
+                      disabled={disabled}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </>
+        )}
+
+        {!disabled && currentStepId === 'summary' && (
+          <ScheduleSummary control={looseControl} />
         )}
 
         {!disabled && (

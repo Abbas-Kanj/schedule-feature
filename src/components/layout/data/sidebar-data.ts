@@ -1,29 +1,11 @@
 import {
-  Construction,
-  LayoutDashboard,
-  Monitor,
-  Bug,
   CalendarClock,
-  ListTodo,
-  FileX,
-  HelpCircle,
-  Lock,
-  Bell,
-  Package,
-  Palette,
-  ServerOff,
-  Settings,
-  Wrench,
-  UserCog,
-  UserX,
-  Users,
-  MessagesSquare,
-  ShieldCheck,
   AudioWaveform,
+  Clock,
   Command,
   GalleryVerticalEnd,
+  ShoppingCart,
 } from 'lucide-react'
-import { ClerkLogo } from '@/assets/clerk-logo'
 import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
@@ -64,9 +46,23 @@ export const sidebarData: SidebarData = {
         //   icon: ListTodo,
         // },
         {
-          title: 'Schedules',
-          url: '/schedules',
-          icon: CalendarClock,
+          title: 'Time Track',
+          icon: Clock,
+          items: [
+            {
+              title: 'Schedules',
+              icon: CalendarClock,
+              items: [
+                { title: 'General schedule', url: '/schedules' },
+                { title: 'Flexible schedule', url: '/schedules' },
+              ],
+            },
+          ],
+        },
+        {
+          title: 'POS',
+          url: '#',
+          icon: ShoppingCart,
         },
         // {
         //   title: 'Apps',

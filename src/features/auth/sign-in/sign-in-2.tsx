@@ -1,13 +1,19 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useSearch } from '@tanstack/react-router'
 import { Logo } from '@/assets/logo'
-import { cn } from '@/lib/utils'
-import dashboardDark from './assets/dashboard-dark.png'
-import dashboardLight from './assets/dashboard-light.png'
+import { ClockIllustration } from './assets/clock-illustration'
 import { UserAuthForm } from './components/user-auth-form'
 
 export function SignIn2() {
+  const { redirect } = useSearch({ from: '/(auth)/sign-in' })
   return (
     <div className='relative container grid h-svh flex-col items-center justify-center lg:max-w-none lg:grid-cols-2 lg:px-0'>
+      <div className='relative h-full overflow-hidden bg-primary max-lg:hidden'>
+        <ClockIllustration className='absolute top-1/2 left-1/2 h-[140%] w-[140%] -translate-x-1/2 -translate-y-1/2 text-primary-foreground/15' />
+        <div className='relative z-10 flex h-full flex-col justify-end p-10 text-primary-foreground'>
+          <p className='text-lg font-medium'>Track time, on your schedule.</p>
+        </div>
+      </div>
+
       <div className='lg:p-8'>
         <div className='mx-auto flex w-full flex-col justify-center space-y-2 py-8 sm:w-120 sm:p-8'>
           <div className='mb-4 flex items-center justify-center'>
@@ -30,7 +36,7 @@ export function SignIn2() {
               </Link>
             </p>
           </div>
-          <UserAuthForm />
+          <UserAuthForm redirectTo={redirect} />
           <p className='px-8 text-center text-sm text-muted-foreground'>
             By clicking sign in, you agree to our{' '}
             <a
@@ -49,28 +55,6 @@ export function SignIn2() {
             .
           </p>
         </div>
-      </div>
-
-      <div
-        className={cn(
-          'relative h-full overflow-hidden bg-muted max-lg:hidden',
-          '[&>img]:absolute [&>img]:top-[15%] [&>img]:left-20 [&>img]:h-full [&>img]:w-full [&>img]:object-cover [&>img]:object-top-left [&>img]:select-none'
-        )}
-      >
-        <img
-          src={dashboardLight}
-          className='dark:hidden'
-          width={1024}
-          height={1151}
-          alt='Shadcn-Admin'
-        />
-        <img
-          src={dashboardDark}
-          className='hidden dark:block'
-          width={1024}
-          height={1138}
-          alt='Shadcn-Admin'
-        />
       </div>
     </div>
   )

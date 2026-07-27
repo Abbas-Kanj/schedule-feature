@@ -300,6 +300,7 @@ function SingleShiftFields({ disabled }: { disabled?: boolean }) {
                     <Input
                       type='time'
                       disabled={disabled}
+                      min={time?.from_time || undefined}
                       max={breakTime?.to_time || undefined}
                       {...field}
                     />
@@ -319,6 +320,7 @@ function SingleShiftFields({ disabled }: { disabled?: boolean }) {
                       type='time'
                       disabled={disabled}
                       min={breakTime?.from_time || undefined}
+                      max={time?.to_time || undefined}
                       {...field}
                     />
                   </FormControl>
@@ -355,6 +357,13 @@ function ShiftRow({
     name: `shifts.${index}.days`,
   })
   const hasBreak = useWatch({ control, name: `shifts.${index}.has_break` })
+  const days = useWatch({ control, name: `shifts.${index}.days` }) as
+    | RegularShiftDay[]
+    | undefined
+
+  const dayHours = (days ?? []).map((d) => calculateHours(d.splits))
+  const maxBreakHours =
+    dayHours.length > 0 ? Math.min(12, Math.min(...dayHours)) : 12
 
   const toggleDay = (day: DayOfWeek, checked: boolean) => {
     const dayIndex = fields.findIndex(
@@ -458,7 +467,7 @@ function ShiftRow({
                   <Input
                     type='number'
                     min={1}
-                    max={12}
+                    max={maxBreakHours}
                     disabled={disabled}
                     value={field.value ?? ''}
                     onChange={(e) => field.onChange(e.target.valueAsNumber)}

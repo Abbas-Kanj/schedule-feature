@@ -26,6 +26,12 @@ const timeRangeSchema = z
     path: ['to_time'],
   })
 
+function rangeHours(range: { from_time: string; to_time: string }) {
+  const [fromH, fromM] = range.from_time.split(':').map(Number)
+  const [toH, toM] = range.to_time.split(':').map(Number)
+  return (toH * 60 + toM - (fromH * 60 + fromM)) / 60
+}
+
 const dayScheduleSchema = z.object({
   day: daySchema,
   times: z.array(timeRangeSchema).min(1, 'Add at least one time range'),
@@ -116,6 +122,17 @@ const singleShiftSchema = z
     message: 'Add a break time range',
     path: ['break_time'],
   })
+  .refine(
+    (val) =>
+      !val.has_break ||
+      !val.break_time ||
+      (val.break_time.from_time >= val.time.from_time &&
+        val.break_time.to_time <= val.time.to_time),
+    {
+      message: 'Break must be within the shift time',
+      path: ['break_time'],
+    }
+  )
 
 const regularShiftDaySchema = z.object({
   day: daySchema,
@@ -217,6 +234,21 @@ const regularScheduleSchema = z
           })
         }
       })
+
+      if (shift.has_break && shift.break_hours != null && shift.days.length) {
+        const minDayHours = Math.min(
+          ...shift.days.map((d) =>
+            d.splits.reduce((sum, s) => sum + rangeHours(s), 0)
+          )
+        )
+        if (shift.break_hours > minDayHours) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Break hours must be less than the working hours',
+            path: ['shifts', i, 'break_hours'],
+          })
+        }
+      }
     })
 
     if (val.shift_number > 1) {

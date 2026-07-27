@@ -53,7 +53,22 @@ function capitalize(value: string) {
 }
 
 export function getScheduleTotalHours(schedule: Schedule): number {
-  if (schedule.parent_type === 'regular') return 0
+  if (schedule.parent_type === 'regular') {
+    const isSingle = schedule.shift_number === 1 && schedule.split_number === 1
+
+    if (isSingle) {
+      return schedule.single_shift
+        ? calculateHours([schedule.single_shift.time])
+        : 0
+    }
+
+    return (schedule.shifts ?? []).reduce(
+      (shiftSum, shift) =>
+        shiftSum +
+        shift.days.reduce((daySum, d) => daySum + calculateHours(d.splits), 0),
+      0
+    )
+  }
 
   if (schedule.type === 'weekly' || schedule.type === 'weekly_one') {
     return schedule.days.reduce((sum, d) => sum + calculateHours(d.times), 0)

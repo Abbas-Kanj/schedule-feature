@@ -1,5 +1,10 @@
 import { useEffect } from 'react'
-import { useFieldArray, useFormContext, useWatch } from 'react-hook-form'
+import {
+  useFieldArray,
+  useFormContext,
+  useFormState,
+  useWatch,
+} from 'react-hook-form'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -214,7 +219,7 @@ function SingleShiftFields({ disabled }: { disabled?: boolean }) {
   const breakTime = useWatch({ control, name: 'single_shift.break_time' })
 
   const hours = calculateHours(time ? [time] : [])
-  const breakHours = calculateHours(breakTime ? [breakTime] : [])
+  const breakDuration = calculateHours(breakTime ? [breakTime] : [])
 
   return (
     <div className='space-y-4'>
@@ -279,6 +284,7 @@ function SingleShiftFields({ disabled }: { disabled?: boolean }) {
                       from_time: '12:00',
                       to_time: '13:00',
                     })
+                    setValue('single_shift.break_hours', 1)
                   }
                 }}
               />
@@ -330,8 +336,30 @@ function SingleShiftFields({ disabled }: { disabled?: boolean }) {
             />
           </div>
           <div className='flex justify-end'>
-            <Badge variant='secondary'>{breakHours}h total</Badge>
+            <Badge variant='secondary'>{breakDuration}h total</Badge>
           </div>
+
+          <FormField
+            control={control}
+            name='single_shift.break_hours'
+            render={({ field }) => (
+              <FormItem className='pt-2'>
+                <FormLabel>Break hours</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0.25}
+                    step={0.25}
+                    max={breakDuration || undefined}
+                    disabled={disabled}
+                    value={field.value ?? ''}
+                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </FormItem>
       )}
     </div>
@@ -360,6 +388,12 @@ function ShiftRow({
   const days = useWatch({ control, name: `shifts.${index}.days` }) as
     | RegularShiftDay[]
     | undefined
+  const { errors } = useFormState({ control, name: `shifts.${index}.days` })
+  const daysError = (
+    errors?.shifts as
+      | { [key: number]: { days?: { message?: string } } }
+      | undefined
+  )?.[index]?.days?.message
 
   const dayHours = (days ?? []).map((d) => calculateHours(d.splits))
   const maxBreakHours =
@@ -413,6 +447,9 @@ function ShiftRow({
             )
           })}
         </div>
+        {daysError && (
+          <p className='text-sm text-destructive'>{daysError}</p>
+        )}
 
         {fields.map((dayField, dayIndex) => {
           const day = (dayField as unknown as { day: DayOfWeek }).day

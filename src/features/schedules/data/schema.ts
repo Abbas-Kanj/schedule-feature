@@ -117,6 +117,7 @@ const singleShiftSchema = z
     time: timeRangeSchema,
     has_break: z.boolean(),
     break_time: timeRangeSchema.optional(),
+    break_hours: z.number().min(0.25).optional(),
   })
   .refine((val) => !val.has_break || !!val.break_time, {
     message: 'Add a break time range',
@@ -131,6 +132,21 @@ const singleShiftSchema = z
     {
       message: 'Break must be within the shift time',
       path: ['break_time'],
+    }
+  )
+  .refine((val) => !val.has_break || val.break_hours != null, {
+    message: 'Set break hours',
+    path: ['break_hours'],
+  })
+  .refine(
+    (val) =>
+      !val.has_break ||
+      val.break_hours == null ||
+      !val.break_time ||
+      val.break_hours <= rangeHours(val.break_time),
+    {
+      message: 'Break hours must not exceed the break time range',
+      path: ['break_hours'],
     }
   )
 
@@ -185,10 +201,18 @@ const regularScheduleSchema = z
     repeated_shift: z.number().min(1).max(3).optional(),
     leave_hours: z.number().min(1).max(12).optional(),
     official_holiday_hours: z.number().min(1).max(12).optional(),
-    policy_type: policyTypeSchema,
+    policy_type: policyTypeSchema.optional(),
   })
   .superRefine((val, ctx) => {
     const isSingle = val.shift_number === 1 && val.split_number === 1
+
+    if (!val.policy_type) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Select a policy type',
+        path: ['policy_type'],
+      })
+    }
 
     if (isSingle) {
       if (!val.single_shift) {
@@ -296,7 +320,7 @@ const commonScheduleSchema = z.object({
 })
 
 export const scheduleSchema = z
-  .union([dailyScheduleSchema, regularScheduleSchema])
+  .discriminatedUnion('parent_type', [dailyScheduleSchema, regularScheduleSchema])
   .and(commonScheduleSchema)
 
 export type Schedule = z.infer<typeof scheduleSchema>

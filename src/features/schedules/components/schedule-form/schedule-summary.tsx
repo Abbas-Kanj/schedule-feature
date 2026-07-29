@@ -148,6 +148,8 @@ function RegularSummary({ values }: { values: any }) {
               <span>Break</span>
               <span className='text-muted-foreground'>
                 {formatTimes([values.single_shift.break_time])}
+                {values.single_shift.break_hours != null &&
+                  ` (${values.single_shift.break_hours}h)`}
               </span>
             </div>
           )}

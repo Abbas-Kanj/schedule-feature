@@ -5,6 +5,9 @@ import {
   Command,
   GalleryVerticalEnd,
   ShoppingCart,
+  CalendarDays,
+  Users,
+  LayoutDashboard,
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 
@@ -31,6 +34,7 @@ export const sidebarData: SidebarData = {
       plan: 'Startup',
     },
   ],
+
   navGroups: [
     {
       title: 'General',
@@ -45,6 +49,52 @@ export const sidebarData: SidebarData = {
         //   url: '/tasks',
         //   icon: ListTodo,
         // },
+
+        {
+          title: 'Dashboard',
+          url: '/',
+          icon: LayoutDashboard,
+        },
+
+        // {
+        //   title: 'Apps',
+        //   url: '/apps',
+        //   icon: Package,
+        // },
+        // {
+        //   title: 'Chats',
+        //   url: '/chats',
+        //   badge: '3',
+        //   icon: MessagesSquare,
+        // },
+        // {
+        //   title: 'Users',
+        //   url: '/users',
+        //   icon: Users,
+        // },
+        // {
+        //   title: 'Secured by Clerk',
+        //   icon: ClerkLogo,
+        //   items: [
+        //     {
+        //       title: 'Sign In',
+        //       url: '/clerk/sign-in',
+        //     },
+        //     {
+        //       title: 'Sign Up',
+        //       url: '/clerk/sign-up',
+        //     },
+        //     {
+        //       title: 'User Management',
+        //       url: '/clerk/user-management',
+        //     },
+        //   ],
+        // },
+      ],
+    },
+    {
+      title: 'Time Attendance',
+      items: [
         {
           title: 'Time Track',
           icon: Clock,
@@ -59,11 +109,40 @@ export const sidebarData: SidebarData = {
             },
           ],
         },
+
+        {
+          title: 'Employees',
+          url: '/employees-list',
+          icon: Users,
+        },
+
+        {
+          title: 'Holidays',
+          url: '/official-holidays',
+          icon: CalendarDays,
+        },
+      ],
+    },
+
+    {
+      title: 'POS',
+      items: [
         {
           title: 'POS',
           url: '#',
           icon: ShoppingCart,
         },
+        // {
+        //   title: 'Dashboard',
+        //   url: '/',
+        //   icon: LayoutDashboard,
+        // },
+        // {
+        //   title: 'Tasks',
+        //   url: '/tasks',
+        //   icon: ListTodo,
+        // },
+
         // {
         //   title: 'Apps',
         //   url: '/apps',

@@ -57,9 +57,9 @@ export function getScheduleTotalHours(schedule: Schedule): number {
     const isSingle = schedule.shift_number === 1 && schedule.split_number === 1
 
     if (isSingle) {
-      return schedule.single_shift
-        ? calculateHours([schedule.single_shift.time])
-        : 0
+      if (!schedule.single_shift) return 0
+      const dayCount = schedule.single_shift.days.length
+      return calculateHours([schedule.single_shift.time]) * dayCount
     }
 
     return (schedule.shifts ?? []).reduce(

@@ -17,13 +17,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { MultiSelect } from '@/components/multi-select'
 import { POLICY_TYPE_OPTIONS, SCHEDULE_TYPES } from '../../data/data'
 import {
-  type DailySchedule,
   type Schedule,
   type ScheduleType,
   scheduleSchema,
 } from '../../data/schema'
 import { generateId } from '../../utils'
-import { EmployeeMultiSelect } from './employee-multi-select'
 import { MonthlyFields } from './monthly-fields'
 import { RegularShiftFields } from './regular-shift-fields'
 import { ScheduleSummary } from './schedule-summary'
@@ -54,14 +52,12 @@ function getTypeDefaults(type: ScheduleType) {
         month: now.getMonth() + 1,
         week: { start_date: '', end_date: '' },
         days: [],
-        employees: [],
       }
     case 'weekly_one':
       return {
         parent_type: 'daily' as const,
         type: 'weekly_one' as const,
         days: [],
-        employees: [],
       }
     case 'monthly':
       return {
@@ -69,7 +65,6 @@ function getTypeDefaults(type: ScheduleType) {
         type: 'monthly' as const,
         year: now.getFullYear(),
         months: [],
-        employees: [],
       }
   }
 }
@@ -80,6 +75,7 @@ function getRegularDefaults() {
     shift_number: 1,
     split_number: 1,
     single_shift: {
+      days: [],
       time: { from_time: '09:00', to_time: '17:00' },
       has_break: false,
     },
@@ -117,14 +113,14 @@ function getStepFields(
   if (stepId === 'basics') {
     return parentType === 'regular'
       ? ['name', 'description', 'parent_type', 'shift_number', 'split_number']
-      : ['name', 'description', 'parent_type', 'employees']
+      : ['name', 'description', 'parent_type']
   }
   if (stepId === 'type') {
     if (parentType === 'regular') {
       if (shiftNumber === 1 && splitNumber === 1) return ['single_shift']
       const fields = ['shifts']
       if ((shiftNumber ?? 0) > 1) {
-        fields.push('shift_cycle', 'shift_employee_rotation', 'repeated_shift')
+        fields.push('shift_cycle', 'shift_rotation', 'repeated_shift')
       }
       return fields
     }
@@ -198,7 +194,6 @@ export function ScheduleForm({
       name: current.name,
       description: current.description,
       ...getTypeDefaults(value as ScheduleType),
-      employees: (current as DailySchedule).employees ?? [],
     } as Schedule)
   }
 
@@ -276,10 +271,6 @@ export function ScheduleForm({
                 </FormItem>
               )}
             />
-
-            {parentType === 'daily' && (
-              <EmployeeMultiSelect control={looseControl} disabled={disabled} />
-            )}
 
             {parentType === 'regular' && (
               <>

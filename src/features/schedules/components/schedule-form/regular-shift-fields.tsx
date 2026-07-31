@@ -62,7 +62,7 @@ export function RegularShiftFields({ disabled }: RegularShiftFieldsProps) {
         | undefined) ?? []
     const next = Array.from({ length: shiftNumber }, (_, i) => {
       const existingDays = current[i]?.days ?? []
-      const days = existingDays.slice(0, shiftNumber).map((d) => ({
+      const days = existingDays.map((d) => ({
         day: d.day,
         splits:
           d.splits.length === splitNumber
@@ -85,6 +85,7 @@ export function RegularShiftFields({ disabled }: RegularShiftFieldsProps) {
     if (!isSingle) return
     if (!getValues('single_shift')) {
       setValue('single_shift', {
+        days: [],
         time: { ...DEFAULT_TIME },
         has_break: false,
       })
@@ -111,7 +112,6 @@ export function RegularShiftFields({ disabled }: RegularShiftFieldsProps) {
         <ShiftRow
           key={field.id}
           index={index}
-          shiftNumber={shiftNumber}
           splitNumber={splitNumber}
           disabled={disabled}
         />
@@ -147,12 +147,12 @@ function ShiftRotationFields({ disabled }: { disabled?: boolean }) {
                 defaultValue={field.value}
                 onValueChange={(value) => {
                   field.onChange(value)
-                  const rotation = getValues('shift_employee_rotation')
+                  const rotation = getValues('shift_rotation')
                   const validRotations = getShiftRotationOptions(
                     value as ShiftCycle
                   )
                   if (!validRotations.some((o) => o.value === rotation)) {
-                    setValue('shift_employee_rotation', undefined)
+                    setValue('shift_rotation', undefined)
                   }
                 }}
                 placeholder='Select a cycle'
@@ -166,10 +166,10 @@ function ShiftRotationFields({ disabled }: { disabled?: boolean }) {
 
         <FormField
           control={control}
-          name='shift_employee_rotation'
+          name='shift_rotation'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Employee rotation</FormLabel>
+              <FormLabel>Shift rotation</FormLabel>
               <SelectDropdown
                 isControlled
                 defaultValue={field.value}
@@ -213,16 +213,66 @@ function ShiftRotationFields({ disabled }: { disabled?: boolean }) {
 }
 
 function SingleShiftFields({ disabled }: { disabled?: boolean }) {
-  const { control, setValue } = useFormContext<any>()
+  const { control, getValues, setValue } = useFormContext<any>()
   const time = useWatch({ control, name: 'single_shift.time' })
   const hasBreak = useWatch({ control, name: 'single_shift.has_break' })
   const breakTime = useWatch({ control, name: 'single_shift.break_time' })
+  const days = useWatch({ control, name: 'single_shift.days' }) as
+    | DayOfWeek[]
+    | undefined
+  const { errors } = useFormState({ control, name: 'single_shift.days' })
+  const daysError = (
+    errors?.single_shift as { days?: { message?: string } } | undefined
+  )?.days?.message
 
   const hours = calculateHours(time ? [time] : [])
   const breakDuration = calculateHours(breakTime ? [breakTime] : [])
 
+  const toggleDay = (day: DayOfWeek, checked: boolean) => {
+    const current = (getValues('single_shift.days') as
+      | DayOfWeek[]
+      | undefined) ?? []
+    if (checked) {
+      if (!current.includes(day)) {
+        setValue('single_shift.days', [...current, day])
+      }
+    } else {
+      setValue(
+        'single_shift.days',
+        current.filter((d) => d !== day)
+      )
+    }
+  }
+
   return (
     <div className='space-y-4'>
+      <FormItem>
+        <FormLabel>Days</FormLabel>
+        <div className='grid grid-cols-7 gap-1 text-center'>
+          {DAYS_OF_WEEK.map((day) => {
+            const checked = (days ?? []).includes(day)
+            return (
+              <button
+                key={day}
+                type='button'
+                disabled={disabled}
+                onClick={() => toggleDay(day, !checked)}
+                className={cn(
+                  'rounded-md border p-2 text-xs capitalize transition-colors',
+                  checked
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'hover:bg-accent',
+                  disabled && 'cursor-not-allowed opacity-50'
+                )}
+              >
+                {day.slice(0, 3)}
+              </button>
+            )
+          })}
+        </div>
+        {daysError && <p className='text-sm text-destructive'>{daysError}</p>}
+      </FormItem>
+
       <FormItem>
         <FormLabel>Shift time</FormLabel>
         <div className='flex items-start gap-2'>
@@ -368,23 +418,18 @@ function SingleShiftFields({ disabled }: { disabled?: boolean }) {
 
 type ShiftRowProps = {
   index: number
-  shiftNumber: number
   splitNumber: number
   disabled?: boolean
 }
 
-function ShiftRow({
-  index,
-  shiftNumber,
-  splitNumber,
-  disabled,
-}: ShiftRowProps) {
+function ShiftRow({ index, splitNumber, disabled }: ShiftRowProps) {
   const { control, getValues, setValue } = useFormContext<any>()
   const { fields, append, remove } = useFieldArray({
     control,
     name: `shifts.${index}.days`,
   })
   const hasBreak = useWatch({ control, name: `shifts.${index}.has_break` })
+  const breakTime = useWatch({ control, name: `shifts.${index}.break_time` })
   const days = useWatch({ control, name: `shifts.${index}.days` }) as
     | RegularShiftDay[]
     | undefined
@@ -398,13 +443,13 @@ function ShiftRow({
   const dayHours = (days ?? []).map((d) => calculateHours(d.splits))
   const maxBreakHours =
     dayHours.length > 0 ? Math.min(12, Math.min(...dayHours)) : 12
+  const breakDuration = calculateHours(breakTime ? [breakTime] : [])
 
   const toggleDay = (day: DayOfWeek, checked: boolean) => {
     const dayIndex = fields.findIndex(
       (f) => (f as unknown as { day: string }).day === day
     )
     if (checked && dayIndex === -1) {
-      if (fields.length >= shiftNumber) return
       append({ day, splits: makeSplits(splitNumber) })
     } else if (!checked && dayIndex > -1) {
       remove(dayIndex)
@@ -416,9 +461,6 @@ function ShiftRow({
       <CardHeader className='px-4'>
         <CardTitle className='flex items-center gap-2 text-sm font-medium'>
           Shift {index + 1}
-          <span className='text-xs font-normal text-muted-foreground'>
-            Pick up to {shiftNumber} day{shiftNumber > 1 ? 's' : ''}
-          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className='space-y-3 px-4'>
@@ -427,19 +469,18 @@ function ShiftRow({
             const checked = fields.some(
               (f) => (f as unknown as { day: string }).day === day
             )
-            const atLimit = !checked && fields.length >= shiftNumber
             return (
               <button
                 key={day}
                 type='button'
-                disabled={disabled || atLimit}
+                disabled={disabled}
                 onClick={() => toggleDay(day, !checked)}
                 className={cn(
                   'rounded-md border p-2 text-xs capitalize transition-colors',
                   checked
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'hover:bg-accent',
-                  (disabled || atLimit) && 'cursor-not-allowed opacity-50'
+                  disabled && 'cursor-not-allowed opacity-50'
                 )}
               >
                 {day.slice(0, 3)}
@@ -480,11 +521,16 @@ function ShiftRow({
                   disabled={disabled}
                   onCheckedChange={(checked) => {
                     field.onChange(checked)
-                    if (
-                      checked &&
-                      getValues(`shifts.${index}.break_hours`) == null
-                    ) {
-                      setValue(`shifts.${index}.break_hours`, 1)
+                    if (checked) {
+                      if (getValues(`shifts.${index}.break_time`) == null) {
+                        setValue(`shifts.${index}.break_time`, {
+                          from_time: '12:00',
+                          to_time: '13:00',
+                        })
+                      }
+                      if (getValues(`shifts.${index}.break_hours`) == null) {
+                        setValue(`shifts.${index}.break_hours`, 1)
+                      }
                     }
                   }}
                 />
@@ -494,26 +540,70 @@ function ShiftRow({
         />
 
         {hasBreak && (
-          <FormField
-            control={control}
-            name={`shifts.${index}.break_hours`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Break hours</FormLabel>
-                <FormControl>
-                  <Input
-                    type='number'
-                    min={1}
-                    max={maxBreakHours}
-                    disabled={disabled}
-                    value={field.value ?? ''}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <FormItem>
+            <FormLabel>Break time</FormLabel>
+            <div className='flex items-start gap-2'>
+              <FormField
+                control={control}
+                name={`shifts.${index}.break_time.from_time`}
+                render={({ field }) => (
+                  <FormItem className='flex-1'>
+                    <FormControl>
+                      <Input
+                        type='time'
+                        disabled={disabled}
+                        max={breakTime?.to_time || undefined}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <span className='pt-2 text-sm text-muted-foreground'>to</span>
+              <FormField
+                control={control}
+                name={`shifts.${index}.break_time.to_time`}
+                render={({ field }) => (
+                  <FormItem className='flex-1'>
+                    <FormControl>
+                      <Input
+                        type='time'
+                        disabled={disabled}
+                        min={breakTime?.from_time || undefined}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <div className='flex justify-end'>
+              <Badge variant='secondary'>{breakDuration}h total</Badge>
+            </div>
+
+            <FormField
+              control={control}
+              name={`shifts.${index}.break_hours`}
+              render={({ field }) => (
+                <FormItem className='pt-2'>
+                  <FormLabel>Break hours</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={1}
+                      max={Math.min(maxBreakHours, breakDuration || maxBreakHours)}
+                      disabled={disabled}
+                      value={field.value ?? ''}
+                      onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </FormItem>
         )}
       </CardContent>
     </Card>

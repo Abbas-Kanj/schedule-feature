@@ -45,16 +45,10 @@ function formatTimes(times?: { from_time: string; to_time: string }[]) {
 function DailySummary({ values }: { values: any }) {
   const typeLabel =
     SCHEDULE_TYPES.find((t) => t.value === values.type)?.label ?? values.type
-  const employees = values.employees ?? []
 
   return (
     <SummarySection title='Type'>
       <SummaryRow label='Schedule type' value={typeLabel} />
-      <SummaryRow
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        value={employees.map((e: any) => e.label).join(', ')}
-        label='Employees'
-      />
 
       {(values.type === 'weekly' || values.type === 'weekly_one') && (
         <div className='space-y-1 border-t pt-2'>
@@ -122,11 +116,11 @@ function RegularSummary({ values }: { values: any }) {
             }
           />
           <SummaryRow
-            label='Employee rotation'
+            label='Shift rotation'
             value={
               values.shift_cycle
                 ? getShiftRotationOptions(values.shift_cycle).find(
-                    (o) => o.value === values.shift_employee_rotation
+                    (o) => o.value === values.shift_rotation
                   )?.label
                 : undefined
             }
@@ -137,6 +131,12 @@ function RegularSummary({ values }: { values: any }) {
 
       {isSingle && values.single_shift && (
         <div className='space-y-1 border-t pt-2'>
+          <div className='flex items-center justify-between text-sm'>
+            <span>Days</span>
+            <span className='text-muted-foreground capitalize'>
+              {(values.single_shift.days ?? []).join(', ') || '—'}
+            </span>
+          </div>
           <div className='flex items-center justify-between text-sm'>
             <span>Shift time</span>
             <span className='text-muted-foreground'>
@@ -181,7 +181,8 @@ function RegularSummary({ values }: { values: any }) {
                   <div className='flex items-center justify-between text-sm'>
                     <span className='text-muted-foreground'>Break</span>
                     <span className='text-muted-foreground'>
-                      {shift.break_hours}h
+                      {formatTimes(shift.break_time ? [shift.break_time] : [])}
+                      {shift.break_hours != null && ` (${shift.break_hours}h)`}
                     </span>
                   </div>
                 )}

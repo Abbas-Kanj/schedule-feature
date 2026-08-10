@@ -30,6 +30,7 @@ import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSchedulesIndexRouteImport } from './routes/_authenticated/schedules/index'
+import { Route as AuthenticatedScheduleTempIndexRouteImport } from './routes/_authenticated/schedule-temp/index'
 import { Route as AuthenticatedOfficialHolidaysIndexRouteImport } from './routes/_authenticated/official-holidays/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
@@ -153,6 +154,12 @@ const AuthenticatedSchedulesIndexRoute =
     path: '/schedules/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedScheduleTempIndexRoute =
+  AuthenticatedScheduleTempIndexRouteImport.update({
+    id: '/schedule-temp/',
+    path: '/schedule-temp/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedOfficialHolidaysIndexRoute =
   AuthenticatedOfficialHolidaysIndexRouteImport.update({
     id: '/official-holidays/',
@@ -267,6 +274,7 @@ export interface FileRoutesByFullPath {
   '/chats/': typeof AuthenticatedChatsIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/official-holidays/': typeof AuthenticatedOfficialHolidaysIndexRoute
+  '/schedule-temp/': typeof AuthenticatedScheduleTempIndexRoute
   '/schedules/': typeof AuthenticatedSchedulesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
@@ -301,6 +309,7 @@ export interface FileRoutesByTo {
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/official-holidays': typeof AuthenticatedOfficialHolidaysIndexRoute
+  '/schedule-temp': typeof AuthenticatedScheduleTempIndexRoute
   '/schedules': typeof AuthenticatedSchedulesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
@@ -340,6 +349,7 @@ export interface FileRoutesById {
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/official-holidays/': typeof AuthenticatedOfficialHolidaysIndexRoute
+  '/_authenticated/schedule-temp/': typeof AuthenticatedScheduleTempIndexRoute
   '/_authenticated/schedules/': typeof AuthenticatedSchedulesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
@@ -377,6 +387,7 @@ export interface FileRouteTypes {
     | '/chats/'
     | '/help-center/'
     | '/official-holidays/'
+    | '/schedule-temp/'
     | '/schedules/'
     | '/settings/'
     | '/tasks/'
@@ -411,6 +422,7 @@ export interface FileRouteTypes {
     | '/chats'
     | '/help-center'
     | '/official-holidays'
+    | '/schedule-temp'
     | '/schedules'
     | '/settings'
     | '/tasks'
@@ -449,6 +461,7 @@ export interface FileRouteTypes {
     | '/_authenticated/chats/'
     | '/_authenticated/help-center/'
     | '/_authenticated/official-holidays/'
+    | '/_authenticated/schedule-temp/'
     | '/_authenticated/schedules/'
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
@@ -621,6 +634,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSchedulesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/schedule-temp/': {
+      id: '/_authenticated/schedule-temp/'
+      path: '/schedule-temp'
+      fullPath: '/schedule-temp/'
+      preLoaderRoute: typeof AuthenticatedScheduleTempIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/official-holidays/': {
       id: '/_authenticated/official-holidays/'
       path: '/official-holidays'
@@ -762,6 +782,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedOfficialHolidaysIndexRoute: typeof AuthenticatedOfficialHolidaysIndexRoute
+  AuthenticatedScheduleTempIndexRoute: typeof AuthenticatedScheduleTempIndexRoute
   AuthenticatedSchedulesIndexRoute: typeof AuthenticatedSchedulesIndexRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
@@ -781,6 +802,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedOfficialHolidaysIndexRoute:
     AuthenticatedOfficialHolidaysIndexRoute,
+  AuthenticatedScheduleTempIndexRoute: AuthenticatedScheduleTempIndexRoute,
   AuthenticatedSchedulesIndexRoute: AuthenticatedSchedulesIndexRoute,
   AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,

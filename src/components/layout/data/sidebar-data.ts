@@ -126,6 +126,11 @@ export const sidebarData: SidebarData = {
           url: '/schedule-temp',
           icon: CalendarClock,
         },
+		    {
+          title: 'Employee Schedule',
+          url: '/employee-schedule',
+          icon: CalendarClock,
+        },
       ],
     },
 

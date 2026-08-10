@@ -44,7 +44,7 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 }
-}
+
 
 .dark {
   --background: oklch(0.16 0.045 240);

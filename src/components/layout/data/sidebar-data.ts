@@ -121,6 +121,11 @@ export const sidebarData: SidebarData = {
           url: '/official-holidays',
           icon: CalendarDays,
         },
+		  {
+          title: 'Schedule Temp',
+          url: '/schedule-temp',
+          icon: CalendarClock,
+        },
       ],
     },
 

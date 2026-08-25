@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { z } from 'zod'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarDays, Plus, X } from 'lucide-react'
+import { CalendarDays, X } from 'lucide-react'
 import { showSubmittedData } from '@/lib/show-submitted-data'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,10 +19,8 @@ import { Input } from '@/components/ui/input'
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover'
-import { SelectDropdown } from '@/components/select-dropdown'
-import { rigidOptions } from '../data/data'
-import { type OfficialHoliday } from '../data/schema'
-import { useOfficialHolidays } from './official-holidays-provider'
+import { type PublicHoliday } from '../data/schema'
+import { usePublicHoliday } from './public-holiday-provider'
 
 const formSchema = z.object({
   id: z.string().trim().min(1, 'ID is required.'),
@@ -34,7 +32,6 @@ const formSchema = z.object({
       (dates) => new Set(dates.map((date) => date.value)).size === dates.length,
       'Holiday dates must be unique.'
     ),
-  rigid: z.enum(['yes', 'no']),
 })
 
 type HolidayForm = z.infer<typeof formSchema>
@@ -47,21 +44,20 @@ const toDateInputValue = (date: Date) => {
 }
 
 type Props = {
-  currentRow?: OfficialHoliday
+  currentRow?: PublicHoliday
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function OfficialHolidaysActionDialog({
+export function PublicHolidayActionDialog({
   currentRow,
   open,
   onOpenChange,
 }: Props) {
   const isEdit = !!currentRow
-  const { selectedYear, saveHoliday } = useOfficialHolidays()
+  const { selectedYear, saveHoliday } = usePublicHoliday()
   const holidayYear = currentRow?.year ?? selectedYear
   const [calendarOpen, setCalendarOpen] = useState(false)
-  const [selectedDates, setSelectedDates] = useState<Date[]>([])
   const form = useForm<HolidayForm>({
     resolver: zodResolver(formSchema),
     defaultValues: isEdit
@@ -71,21 +67,14 @@ export function OfficialHolidaysActionDialog({
           holidayDates: currentRow.holidayDates.map((date) => ({
             value: toDateInputValue(date),
           })),
-          rigid: currentRow.rigid ? 'yes' : 'no',
         }
-      : { id: '', name: '', holidayDates: [], rigid: 'no' },
+      : { id: '', name: '', holidayDates: [] },
   })
   const holidayDates =
     useWatch({ control: form.control, name: 'holidayDates' }) ?? []
 
-  const addSelectedDates = () => {
-    if (!selectedDates.length) return
-
-    const currentDates = holidayDates
-      .map(({ value }) => value)
-      .filter(Boolean)
-    const newDates = selectedDates.map(toDateInputValue)
-    const uniqueDates = [...new Set([...currentDates, ...newDates])]
+  const updateSelectedDates = (dates: Date[] | undefined) => {
+    const uniqueDates = [...new Set((dates ?? []).map(toDateInputValue))]
       .sort()
       .map((value) => ({ value }))
 
@@ -93,8 +82,6 @@ export function OfficialHolidaysActionDialog({
       shouldDirty: true,
       shouldValidate: true,
     })
-    setSelectedDates([])
-    setCalendarOpen(false)
   }
 
   const removeDate = (dateToRemove: string) => {
@@ -106,19 +93,19 @@ export function OfficialHolidaysActionDialog({
   }
 
   const onSubmit = (values: HolidayForm) => {
-    const holiday: OfficialHoliday = {
+    const holiday: PublicHoliday = {
       id: values.id,
       name: values.name,
       year: currentRow?.year ?? selectedYear,
       holidayDates: values.holidayDates.map(
         ({ value }) => new Date(`${value}T00:00:00`)
       ),
-      rigid: isEdit ? values.rigid === 'yes' : false,
+      fixed: currentRow?.fixed ?? false,
     }
     saveHoliday(holiday)
     showSubmittedData(
       holiday,
-      isEdit ? 'Official holiday updated:' : 'Official holiday created:'
+      isEdit ? 'Public holiday updated:' : 'Public holiday created:'
     )
     form.reset()
     onOpenChange(false)
@@ -129,20 +116,19 @@ export function OfficialHolidaysActionDialog({
       open={open}
       onOpenChange={(state) => {
         form.reset()
-        setSelectedDates([])
         setCalendarOpen(false)
         onOpenChange(state)
       }}
     >
       <DialogContent className='sm:max-w-xl'>
         <DialogHeader className='text-start'>
-          <DialogTitle>{isEdit ? 'Edit Official Holiday' : 'Add Official Holiday'}</DialogTitle>
+          <DialogTitle>{isEdit ? 'Edit Public Holiday' : 'Add Public Holiday'}</DialogTitle>
           <DialogDescription>
             Enter the holiday details and click save when you are done.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form id='official-holiday-form' onSubmit={form.handleSubmit(onSubmit)} className='max-h-[65vh] space-y-4 overflow-y-auto px-1 py-1'>
+          <form id='public-holiday-form' onSubmit={form.handleSubmit(onSubmit)} className='max-h-[65vh] space-y-4 overflow-y-auto px-1 py-1'>
             <FormField control={form.control} name='id' render={({ field }) => (
               <FormItem>
                 <FormLabel>ID</FormLabel>
@@ -153,13 +139,13 @@ export function OfficialHolidaysActionDialog({
             <FormField control={form.control} name='name' render={({ field }) => (
               <FormItem>
                 <FormLabel>Name</FormLabel>
-                <FormControl><Input placeholder='Official holiday name' {...field} /></FormControl>
+                <FormControl><Input placeholder='Public holiday name' {...field} /></FormControl>
                 <FormMessage />
               </FormItem>
             )} />
             <div className='space-y-2'>
               <FormLabel>
-                Holiday Dates ({holidayDates.filter(({ value }) => value).length}{' '}
+                Dates ({holidayDates.filter(({ value }) => value).length}{' '}
                 day{holidayDates.filter(({ value }) => value).length === 1 ? '' : 's'})
               </FormLabel>
               <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
@@ -176,27 +162,15 @@ export function OfficialHolidaysActionDialog({
                 <PopoverContent className='w-auto p-0' align='start'>
                   <Calendar
                     mode='multiple'
-                    selected={selectedDates}
-                    onSelect={(dates) => setSelectedDates(dates ?? [])}
+                    selected={holidayDates
+                      .filter(({ value }) => value)
+                      .map(({ value }) => new Date(`${value}T00:00:00`))}
+                    onSelect={updateSelectedDates}
                     defaultMonth={new Date(holidayYear, 0)}
                     startMonth={new Date(holidayYear, 0)}
                     endMonth={new Date(holidayYear, 11)}
                     disabled={(date) => date.getFullYear() !== holidayYear}
                   />
-                  <div className='flex items-center justify-between gap-3 border-t p-3'>
-                    <span className='text-muted-foreground text-sm'>
-                      {selectedDates.length} selected
-                    </span>
-                    <Button
-                      type='button'
-                      size='sm'
-                      disabled={!selectedDates.length}
-                      onClick={addSelectedDates}
-                    >
-                      <Plus />
-                      Add date
-                    </Button>
-                  </div>
                 </PopoverContent>
               </Popover>
               <FormField
@@ -230,34 +204,10 @@ export function OfficialHolidaysActionDialog({
                 )}
               />
             </div>
-            {isEdit ? (
-              <FormField control={form.control} name='rigid' render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Rigid</FormLabel>
-                  <SelectDropdown
-                    defaultValue={field.value}
-                    onValueChange={field.onChange}
-                    placeholder='Select Yes or No'
-                    items={rigidOptions.map(({ label, value }) => ({ label, value }))}
-                  />
-                  <FormMessage />
-                </FormItem>
-              )} />
-            ) : (
-              <FormItem>
-                <FormLabel>Rigid</FormLabel>
-                <div className='bg-muted/50 rounded-md border px-3 py-2 text-sm'>
-                  No
-                </div>
-                <p className='text-muted-foreground text-sm'>
-                  New holidays are always created as non-rigid.
-                </p>
-              </FormItem>
-            )}
           </form>
         </Form>
         <DialogFooter>
-          <Button type='submit' form='official-holiday-form'>Save changes</Button>
+          <Button type='submit' form='public-holiday-form'>Save changes</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

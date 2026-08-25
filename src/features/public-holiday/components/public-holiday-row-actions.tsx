@@ -10,11 +10,11 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { type OfficialHoliday } from '../data/schema'
-import { useOfficialHolidays } from './official-holidays-provider'
+import { type PublicHoliday } from '../data/schema'
+import { usePublicHoliday } from './public-holiday-provider'
 
-export function DataTableRowActions({ row }: { row: Row<OfficialHoliday> }) {
-  const { setOpen, setCurrentRow } = useOfficialHolidays()
+export function DataTableRowActions({ row }: { row: Row<PublicHoliday> }) {
+  const { setOpen, setCurrentRow } = usePublicHoliday()
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>

@@ -116,9 +116,9 @@ export const sidebarData: SidebarData = {
           icon: Users,
         },
 
-        {
-          title: 'Holidays',
-          url: '/official-holidays',
+         {
+          title: 'Public Holiday',
+          url: '/public-holiday',
           icon: CalendarDays,
         },
 		  {

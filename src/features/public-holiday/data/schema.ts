@@ -1,14 +1,14 @@
 import { z } from 'zod'
 
-export const officialHolidaySchema = z.object({
+export const publicHolidaySchema = z.object({
   id: z.string(),
   name: z.string(),
   year: z.number().int(),
   holidayDates: z.array(z.coerce.date()).min(1),
-  rigid: z.boolean(),
+  fixed: z.boolean(),
 })
 
-export type OfficialHoliday = z.infer<typeof officialHolidaySchema>
+export type PublicHoliday = z.infer<typeof publicHolidaySchema>
 
 export type HolidayYear = {
   year: number

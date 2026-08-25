@@ -5,43 +5,43 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { type OfficialHoliday } from '../data/schema'
-import { useOfficialHolidays } from './official-holidays-provider'
+import { type PublicHoliday } from '../data/schema'
+import { usePublicHoliday } from './public-holiday-provider'
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  currentRow: OfficialHoliday
+  currentRow: PublicHoliday
 }
 
-export function OfficialHolidaysDeleteDialog({
+export function PublicHolidayDeleteDialog({
   open,
   onOpenChange,
   currentRow,
 }: Props) {
   const [value, setValue] = useState('')
-  const { deleteHoliday } = useOfficialHolidays()
+  const { deleteHoliday } = usePublicHoliday()
   const handleDelete = () => {
     if (value.trim() !== currentRow.name) return
     deleteHoliday(currentRow.id)
     onOpenChange(false)
-    showSubmittedData(currentRow, 'The following official holiday has been deleted:')
+    showSubmittedData(currentRow, 'The following public holiday has been deleted:')
   }
 
   return (
     <ConfirmDialog
       open={open}
       onOpenChange={onOpenChange}
-      form='official-holiday-delete-form'
+      form='public-holiday-delete-form'
       disabled={value.trim() !== currentRow.name}
       title={
         <span className='text-destructive'>
-          <AlertTriangle className='me-1 inline-block' size={18} /> Delete Official Holiday
+          <AlertTriangle className='me-1 inline-block' size={18} /> Delete Public Holiday
         </span>
       }
       desc={
         <form
-          id='official-holiday-delete-form'
+          id='public-holiday-delete-form'
           onSubmit={(event) => {
             event.preventDefault()
             handleDelete()

@@ -33,6 +33,7 @@ import { Route as AuthenticatedSchedulesIndexRouteImport } from './routes/_authe
 import { Route as AuthenticatedScheduleTempIndexRouteImport } from './routes/_authenticated/schedule-temp/index'
 import { Route as AuthenticatedOfficialHolidaysIndexRouteImport } from './routes/_authenticated/official-holidays/index'
 import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_authenticated/help-center/index'
+import { Route as AuthenticatedEmployeeScheduleIndexRouteImport } from './routes/_authenticated/employee-schedule/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as ClerkAuthenticatedUserManagementRouteImport } from './routes/clerk/_authenticated/user-management'
@@ -172,6 +173,12 @@ const AuthenticatedHelpCenterIndexRoute =
     path: '/help-center/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedEmployeeScheduleIndexRoute =
+  AuthenticatedEmployeeScheduleIndexRouteImport.update({
+    id: '/employee-schedule/',
+    path: '/employee-schedule/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   id: '/chats/',
   path: '/chats/',
@@ -272,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
+  '/employee-schedule/': typeof AuthenticatedEmployeeScheduleIndexRoute
   '/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/official-holidays/': typeof AuthenticatedOfficialHolidaysIndexRoute
   '/schedule-temp/': typeof AuthenticatedScheduleTempIndexRoute
@@ -307,6 +315,7 @@ export interface FileRoutesByTo {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
+  '/employee-schedule': typeof AuthenticatedEmployeeScheduleIndexRoute
   '/help-center': typeof AuthenticatedHelpCenterIndexRoute
   '/official-holidays': typeof AuthenticatedOfficialHolidaysIndexRoute
   '/schedule-temp': typeof AuthenticatedScheduleTempIndexRoute
@@ -347,6 +356,7 @@ export interface FileRoutesById {
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
+  '/_authenticated/employee-schedule/': typeof AuthenticatedEmployeeScheduleIndexRoute
   '/_authenticated/help-center/': typeof AuthenticatedHelpCenterIndexRoute
   '/_authenticated/official-holidays/': typeof AuthenticatedOfficialHolidaysIndexRoute
   '/_authenticated/schedule-temp/': typeof AuthenticatedScheduleTempIndexRoute
@@ -385,6 +395,7 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/apps/'
     | '/chats/'
+    | '/employee-schedule/'
     | '/help-center/'
     | '/official-holidays/'
     | '/schedule-temp/'
@@ -420,6 +431,7 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/apps'
     | '/chats'
+    | '/employee-schedule'
     | '/help-center'
     | '/official-holidays'
     | '/schedule-temp'
@@ -459,6 +471,7 @@ export interface FileRouteTypes {
     | '/clerk/_authenticated/user-management'
     | '/_authenticated/apps/'
     | '/_authenticated/chats/'
+    | '/_authenticated/employee-schedule/'
     | '/_authenticated/help-center/'
     | '/_authenticated/official-holidays/'
     | '/_authenticated/schedule-temp/'
@@ -655,6 +668,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHelpCenterIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/employee-schedule/': {
+      id: '/_authenticated/employee-schedule/'
+      path: '/employee-schedule'
+      fullPath: '/employee-schedule/'
+      preLoaderRoute: typeof AuthenticatedEmployeeScheduleIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chats/': {
       id: '/_authenticated/chats/'
       path: '/chats'
@@ -780,6 +800,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
+  AuthenticatedEmployeeScheduleIndexRoute: typeof AuthenticatedEmployeeScheduleIndexRoute
   AuthenticatedHelpCenterIndexRoute: typeof AuthenticatedHelpCenterIndexRoute
   AuthenticatedOfficialHolidaysIndexRoute: typeof AuthenticatedOfficialHolidaysIndexRoute
   AuthenticatedScheduleTempIndexRoute: typeof AuthenticatedScheduleTempIndexRoute
@@ -799,6 +820,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
+  AuthenticatedEmployeeScheduleIndexRoute:
+    AuthenticatedEmployeeScheduleIndexRoute,
   AuthenticatedHelpCenterIndexRoute: AuthenticatedHelpCenterIndexRoute,
   AuthenticatedOfficialHolidaysIndexRoute:
     AuthenticatedOfficialHolidaysIndexRoute,

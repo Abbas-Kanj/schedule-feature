@@ -11,19 +11,17 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
 import { DataTablePagination, DataTableToolbar } from '@/components/data-table'
-import { rigidOptions } from '../data/data'
-import { type OfficialHoliday } from '../data/schema'
-import { DataTableBulkActions } from './data-table-bulk-actions'
-import { officialHolidaysColumns as columns } from './official-holidays-columns'
+import { fixedOptions } from '../data/fixed-options'
+import { type PublicHoliday } from '../data/schema'
+import { publicHolidaysColumns as columns } from './public-holiday-columns'
 
 type Props = {
-  data: OfficialHoliday[]
+  data: PublicHoliday[]
   search: Record<string, unknown>
   navigate: NavigateFn
 }
 
-export function OfficialHolidaysTable({ data, search, navigate }: Props) {
-  const [rowSelection, setRowSelection] = useState({})
+export function PublicHolidayTable({ data, search, navigate }: Props) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({})
   const [sorting, setSorting] = useState<SortingState>([])
   const {
@@ -36,7 +34,7 @@ export function OfficialHolidaysTable({ data, search, navigate }: Props) {
     globalFilter: { enabled: false },
     columnFilters: [
       { columnId: 'name', searchKey: 'name', type: 'string' },
-      { columnId: 'rigid', searchKey: 'rigid', type: 'array' },
+      { columnId: 'fixed', searchKey: 'fixed', type: 'array' },
     ],
   })
 
@@ -44,11 +42,9 @@ export function OfficialHolidaysTable({ data, search, navigate }: Props) {
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, pagination, rowSelection, columnFilters, columnVisibility },
-    enableRowSelection: true,
+    state: { sorting, pagination, columnFilters, columnVisibility },
     onPaginationChange,
     onColumnFiltersChange,
-    onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
     getPaginationRowModel: getPaginationRowModel(),
@@ -68,13 +64,13 @@ export function OfficialHolidaysTable({ data, search, navigate }: Props) {
     <div className={cn('max-sm:has-[div[role="toolbar"]]:mb-16', 'flex flex-1 flex-col gap-4')}>
       <DataTableToolbar
         table={table}
-        searchPlaceholder='Filter official holidays...'
+        searchPlaceholder='Filter public holidays...'
         searchKey='name'
         filters={[
           {
-            columnId: 'rigid',
-            title: 'Rigid',
-            options: rigidOptions.map((option) => ({ ...option })),
+            columnId: 'fixed',
+            title: 'Fixed',
+            options: fixedOptions.map((option) => ({ ...option })),
           },
         ]}
       />
@@ -98,11 +94,11 @@ export function OfficialHolidaysTable({ data, search, navigate }: Props) {
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'} className='group/row'>
+                <TableRow key={row.id} className='group/row'>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={cn('bg-background group-hover/row:bg-muted group-data-[state=selected]/row:bg-muted', cell.column.columnDef.meta?.className)}
+                      className={cn('bg-background group-hover/row:bg-muted', cell.column.columnDef.meta?.className)}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
@@ -118,7 +114,6 @@ export function OfficialHolidaysTable({ data, search, navigate }: Props) {
         </Table>
       </div>
       <DataTablePagination table={table} className='mt-auto' />
-      <DataTableBulkActions table={table} />
     </div>
   )
 }

@@ -23,7 +23,7 @@ export function ScheduleTempPage() {
         <div>
           <h2 className='text-2xl font-bold tracking-tight'>Schedule Temp</h2>
           <p className='text-muted-foreground'>
-            Manage schedule templates and their effective date periods.
+            Manage schedule template periods, working times, status, and priority.
           </p>
         </div>
         <ScheduleTempTable data={scheduleTemps} onChange={setScheduleTemps} />

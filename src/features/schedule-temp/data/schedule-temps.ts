@@ -1,38 +1,39 @@
 import { type ScheduleTemp } from './schema'
 
+export const statusOptions = [
+  { label: 'Upcoming', value: 'upcoming' },
+  { label: 'Tentative', value: 'tentative' },
+  { label: 'Published', value: 'published' },
+] as const
+
+export const priorityOptions = [
+  { label: 'High', value: 'high' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'Low', value: 'low' },
+] as const
+
 export const initialScheduleTemps: ScheduleTemp[] = [
   {
-    id: 'schedule-1',
-    name: 'Regular Schedule',
-    description: 'Default schedule used during normal working periods.',
-    fromDate: new Date('2026-01-01T00:00:00'),
-    toDate: new Date('2026-05-31T00:00:00'),
-    fromTime: '08:00',
-    toTime: '14:00',
-    status: 'Published',
-    priority: 'High',
-  },
-  {
-    id: 'schedule-2',
+    id: 'schedule-temp-1',
     name: 'Summer Schedule',
-    description: 'Temporary schedule for the summer period.',
-    fromDate: new Date('2026-06-01T00:00:00'),
-    toDate: new Date('2026-08-31T00:00:00'),
-    fromTime: '08:00',
-    toTime: '13:00',
-    status: 'Upcoming',
-    priority: 'Medium',
+    description: 'Temporary summer working schedule.',
+    fromDate: new Date(2026, 5, 1),
+    toDate: new Date(2026, 8, 30),
+    timeFrom: '08:00',
+    timeTo: '16:00',
+    status: 'published',
+    priority: 'high',
   },
   {
-    id: 'schedule-3',
-    name: 'Night Support',
-    description: 'Tentative overnight support schedule.',
-    fromDate: new Date('2026-09-01T00:00:00'),
-    toDate: new Date('2026-12-31T00:00:00'),
-    fromTime: '20:00',
-    toTime: '08:00',
-    status: 'Tentative',
-    priority: 'Low',
+    id: 'schedule-temp-2',
+    name: 'Maintenance Schedule',
+    description: 'Temporary schedule during maintenance work.',
+    fromDate: new Date(2026, 9, 1),
+    toDate: new Date(2026, 9, 15),
+    timeFrom: '20:00',
+    timeTo: '04:00',
+    status: 'tentative',
+    priority: 'medium',
   },
 ]
 

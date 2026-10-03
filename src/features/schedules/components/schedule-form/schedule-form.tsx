@@ -1,7 +1,15 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { format } from 'date-fns'
-import { type Control, type Resolver, useForm, useWatch } from 'react-hook-form'
+import {
+  type FieldPath,
+  type PathValue,
+  type Resolver,
+  useForm,
+  useWatch,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { generateId } from '@/lib/id'
+import { showSubmittedData } from '@/lib/show-submitted-data'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,47 +28,74 @@ import {
   VerticalTabs,
 } from '@/components/ui/vertical-tabs'
 import { MultiSelect } from '@/components/multi-select'
-import { SCHEDULE_TYPES } from '../../data/data'
+import { PARENT_TYPE_OPTIONS, SCHEDULE_TYPES } from '../../data/data'
 import {
   type DailySchedule,
+  DEFAULT_OCCURRENCE_EXCEPTIONS,
+  type ParentScheduleType,
   type RegularType,
   type Schedule,
   type ScheduleType,
   scheduleSchema,
 } from '../../data/schema'
-import { generateId } from '../../utils'
+import {
+  crewSelectionFromDayCoverage,
+  pruneRosterToCrews,
+} from '../../rotation-crews'
 import { EmployeeMultiSelect } from './employee-multi-select'
+import { FixedAssignToFields } from './fixed-assign-to-fields'
 import { MonthlyFields } from './monthly-fields'
-import { RecurrenceFields } from './recurrence-fields'
-import { RegularBasicsFields } from './regular-basics-fields'
-import { RotateFields } from './rotate-fields'
+import { OccurrenceFields } from './occurrence-fields'
+import { PatternBuilder } from './pattern-builder'
+import { ScheduleAssignToFields } from './schedule-assign-to-fields'
+import { ScheduleBasicsFields } from './schedule-basics-fields'
+import { ScheduleStartEndFields } from './schedule-start-end-fields'
 import { ScheduleSummary } from './schedule-summary'
-import { ShiftDefinitionFields } from './shift-definition-fields'
+import { ShiftPickerField } from './shift-picker-field'
 import { WeeklyFields } from './weekly-fields'
 import { WeeklyOneFields } from './weekly-one-fields'
 
 function getSteps(
   parentType: string,
-  regularType?: string,
-  nbOfShifts?: number
+  regularType?: RegularType
 ): VerticalTabsStep[] {
-  const steps: VerticalTabsStep[] = [{ id: 'basics', label: 'Basics' }]
-
-  if (parentType === 'regular') {
-    if (regularType === 'rotate') {
-      steps.push({ id: 'rotate-config', label: 'Rotate config' })
-    } else {
-      steps.push({ id: 'shift-definition', label: 'Shift definition' })
-      if (regularType === 'fixed' && nbOfShifts === 1) {
-        steps.push({ id: 'recurrence', label: 'Recurrence' })
-      }
-    }
-  } else {
-    steps.push({ id: 'type', label: 'Type' })
+  if (parentType === 'daily') {
+    return [
+      { id: 'basics', label: 'Basics' },
+      { id: 'type', label: 'Type' },
+      { id: 'summary', label: 'Summary' },
+    ]
   }
 
-  steps.push({ id: 'summary', label: 'Summary' })
-  return steps
+  // Rotate picks its crews and places them on days and shifts in "Assign to",
+  // which reads in real dates — so the dates come first.
+  if (regularType === 'rotate') {
+    return [
+      { id: 'basics', label: 'Basics' },
+      { id: 'shifts', label: 'Shifts' },
+      { id: 'pattern', label: 'Pattern' },
+      { id: 'end-settings', label: 'Start & End' },
+      { id: 'assign-to', label: 'Assign to' },
+      { id: 'summary', label: 'Summary' },
+    ]
+  }
+  // Fixed assigns crews per shift directly, once the dates are known.
+  if (regularType === 'fixed') {
+    return [
+      { id: 'basics', label: 'Basics' },
+      { id: 'shifts', label: 'Shifts' },
+      { id: 'occurrence', label: 'Occurrence' },
+      { id: 'end-settings', label: 'Start & End' },
+      { id: 'assign-to', label: 'Assign to' },
+      { id: 'summary', label: 'Summary' },
+    ]
+  }
+  return [
+    { id: 'basics', label: 'Basics' },
+    { id: 'shifts', label: 'Shifts' },
+    { id: 'end-settings', label: 'Start & End' },
+    { id: 'summary', label: 'Summary' },
+  ]
 }
 
 const now = new Date()
@@ -95,101 +130,128 @@ function getTypeDefaults(type: ScheduleType) {
   }
 }
 
+// `end_occurrences` gets a default too, so the "End after" input isn't empty
+// when switched to.
+const DEFAULT_END_SETTINGS = {
+  end_type: 'never' as const,
+  end_occurrences: 1,
+}
+
 function getRegularTypeDefaults(type: RegularType) {
-  const base = {
-    parent_type: 'regular' as const,
-    type,
-    is_active: true,
-    start_date: format(now, 'yyyy-MM-dd'),
-  }
+  const startDate = format(now, 'yyyy-MM-dd')
 
   if (type === 'rotate') {
     return {
-      ...base,
-      cycle_type: 'rotating_shift' as const,
+      parent_type: 'regular' as const,
+      type,
+      start_date: startDate,
+      end_settings: DEFAULT_END_SETTINGS,
+      shift_ids: [] as string[],
+      temporary_schedule: false,
+      cycle_type: 'pattern_shifts' as const,
+      crew_kind: 'team' as const,
+      crew_ids: [] as string[],
       cycle_length: { unit: 'weekly' as const, days: 7 },
-      rotate_type: 'right_shift' as const,
-      shift_block: 1,
-      shift_length_hours: 8,
-      blocks: [
-        {
-          id: generateId(),
-          label: 'Shift A',
-          time: { from_time: '09:00', to_time: '17:00' },
-        },
-      ],
       pattern: Array.from({ length: 7 }, (_, i) => ({
         position: i + 1,
-        is_off: false,
-        block_id: undefined,
+        is_off: true,
+        shift_id: undefined,
       })),
+      shift_repeat: [] as {
+        shift_id: string
+        frequency: string
+        interval: number
+      }[],
+      day_coverage: [] as {
+        day: number
+        shift_id: string
+        employee_ids: string[]
+        team_ids: string[]
+      }[],
+      crew_placements: [] as {
+        crew: string
+        day_offset: number
+        shift_step: number
+      }[],
     }
   }
 
-  return {
-    ...base,
-    nb_of_shifts: 1,
-    shifts: [{ id: generateId(), name: '', short_code: '', days: [] }],
+  const shared = {
+    parent_type: 'regular' as const,
+    type,
+    start_date: startDate,
+    end_settings: DEFAULT_END_SETTINGS,
+    shift_ids: [] as string[],
     temporary_schedule: false,
   }
+
+  if (type === 'fixed') {
+    return {
+      ...shared,
+      shift_occurrences: [] as Record<string, unknown>[],
+      occurrence_exceptions: DEFAULT_OCCURRENCE_EXCEPTIONS,
+      crew_kind: 'team' as const,
+      shift_assignments: [] as Record<string, unknown>[],
+    }
+  }
+
+  return shared
 }
 
-const PARENT_TYPES = [
-  {
-    value: 'daily',
-    label: 'Daily',
-  },
-  {
-    value: 'regular',
-    label: 'Regular',
-  },
-]
+// A schedule saved before the "Assign to" step stored its pick still has a
+// roster; recover the pick from it so editing opens on the right crews.
+function withCrewSelection(schedule: Schedule): Schedule {
+  if (schedule.parent_type !== 'regular' || schedule.type !== 'rotate') {
+    return schedule
+  }
+  if (schedule.crew_ids?.length) return schedule
+  const derived = crewSelectionFromDayCoverage(schedule.day_coverage)
+  return derived.crew_ids.length
+    ? { ...schedule, ...derived }
+    : { ...schedule, crew_kind: schedule.crew_kind ?? 'team', crew_ids: [] }
+}
 
 type ScheduleFormProps = {
   defaultValues?: Schedule
   onSubmit: (values: Schedule) => void
   disabled?: boolean
   submitLabel?: string
+  // Creating only: editing a step clears every later step, so what's ahead is
+  // rebuilt from what's behind. Editing an existing schedule keeps saved data.
+  resetLaterStepsOnChange?: boolean
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getStepFields(stepId: string, parentType: string, type?: string): any {
+type ScheduleField = FieldPath<Schedule>
+
+function getStepFields(
+  stepId: string,
+  parentType: string,
+  type?: string
+): ScheduleField[] {
   if (stepId === 'basics') {
-    return parentType === 'regular'
-      ? [
-          'name',
-          'description',
-          'parent_type',
-          'type',
-          'badge_color',
-          'icon',
-          'is_active',
-          'policy_type',
-          'start_date',
-        ]
-      : ['name', 'description', 'parent_type', 'employees']
+    if (parentType !== 'regular') return ['name', 'description', 'employees']
+    // Same basics fields for fixed/flexible/rotate alike — just type + template.
+    return ['name', 'description', 'type']
   }
-  if (stepId === 'shift-definition') {
-    return [
-      'nb_of_shifts',
-      'shifts',
-      'temporary_schedule',
-      'temporary_schedule_label',
-    ]
+  if (stepId === 'shifts') {
+    // Shared by fixed/flexible/rotate.
+    return ['shift_ids']
   }
-  if (stepId === 'rotate-config') {
-    return [
-      'cycle_type',
-      'cycle_length',
-      'rotate_type',
-      'shift_block',
-      'shift_length_hours',
-      'blocks',
-      'pattern',
-    ]
+  if (stepId === 'end-settings') {
+    return ['start_date', 'end_settings']
   }
-  if (stepId === 'recurrence') {
-    return ['recurrence']
+  if (stepId === 'pattern') {
+    return ['cycle_type', 'cycle_length', 'pattern', 'shift_repeat']
+  }
+  if (stepId === 'occurrence') {
+    return ['shift_occurrences', 'occurrence_exceptions']
+  }
+  // At least one crew is required too, checked in `handleNext` rather than the
+  // schema.
+  if (stepId === 'assign-to') {
+    return type === 'fixed'
+      ? ['crew_kind', 'shift_assignments']
+      : ['crew_kind', 'crew_ids']
   }
   if (stepId === 'type') {
     if (type === 'weekly') return ['type', 'year', 'month', 'week', 'days']
@@ -200,55 +262,181 @@ function getStepFields(stepId: string, parentType: string, type?: string): any {
   return []
 }
 
+// Fields a step doesn't show but whose meaning depends on it: a rotate roster
+// is placed on the pattern's cards and drawn from the "Assign to" pick.
+const STEP_DEPENDENT_FIELDS: Record<string, ScheduleField[]> = {
+  pattern: ['day_coverage', 'crew_placements'],
+  'assign-to': ['day_coverage', 'crew_placements'],
+}
+
 export function ScheduleForm({
   defaultValues,
   onSubmit,
   disabled = false,
   submitLabel = 'Save schedule',
+  resetLaterStepsOnChange = false,
 }: ScheduleFormProps) {
   const form = useForm<Schedule>({
     resolver: zodResolver(scheduleSchema) as Resolver<Schedule>,
     mode: 'onChange',
     defaultValues:
-      defaultValues ??
+      (defaultValues && withCrewSelection(defaultValues)) ??
       ({
         id: generateId(),
         name: '',
         description: '',
+        ...getRegularTypeDefaults('fixed'),
       } as Schedule),
   })
 
   const [step, setStep] = useState(0)
-
+  // Furthest step the user has validated their way to — steps beyond this
+  // are locked in the vertical tabs until the ones before them pass.
+  const [maxStep, setMaxStep] = useState(0)
+  // True while the "add new shift" modal (opened from the Shifts step) is
+  // open — locks all step navigation so the user can't jump away from
+  // underneath it. See `ShiftPickerField`'s `onDialogOpenChange`.
+  const [isShiftDialogOpen, setIsShiftDialogOpen] = useState(false)
   const type = form.watch('type')
   const parentType = form.watch('parent_type')
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const looseControl = form.control as unknown as Control<any>
-  const regularType = useWatch({ control: looseControl, name: 'type' }) as
+  const regularType = useWatch({ control: form.control, name: 'type' }) as
     | RegularType
     | undefined
-  const nbOfShifts = useWatch({ control: looseControl, name: 'nb_of_shifts' })
-
-  const steps =
-    parentType === 'regular'
-      ? getSteps(parentType, regularType, nbOfShifts)
-      : getSteps(parentType)
+  const steps = getSteps(parentType, regularType)
   const currentStepId = steps[step]?.id
   const isLastStep = step === steps.length - 1
 
+  // Leaving rotate's "Assign to" takes a picked-but-unapplied suggestion (see
+  // `commitPendingSuggestion`), then drops anybody no longer picked from the
+  // roster, so it never holds crews that are not on the schedule.
+  const commitAssignment = useRef<(() => void) | null>(null)
+  const pruneRosterToSelection = () => {
+    const values = form.getValues()
+    if (values.type !== 'rotate') return
+    const pruned = pruneRosterToCrews(
+      values.day_coverage ?? [],
+      values.crew_placements ?? [],
+      values.crew_kind ?? 'team',
+      values.crew_ids ?? []
+    )
+    form.setValue('day_coverage', pruned.day_coverage)
+    form.setValue('crew_placements', pruned.crew_placements)
+  }
+
+  // What the step currently on screen held when the user arrived on it, so
+  // leaving can tell an actual edit from plain navigation. `null` means no
+  // baseline has been taken yet.
+  const stepSnapshot = useRef<string | null>(null)
+
+  // Only the step's own fields; `STEP_DEPENDENT_FIELDS` are consequences of a
+  // step rather than things edited on it.
+  const snapshotOf = (index: number): string => {
+    const id = steps[index]?.id
+    if (!id) return ''
+    const fields = getStepFields(id, parentType, type)
+    return JSON.stringify(fields.map((field) => form.getValues(field)))
+  }
+
+  const leavingStepChanged = (): boolean =>
+    stepSnapshot.current !== null && snapshotOf(step) !== stepSnapshot.current
+
+  // Later steps are rebuilt from what is behind them, so they are reset when
+  // what is behind them changes — not on navigation alone.
+  const resetLaterStepsIfEdited = () => {
+    if (resetLaterStepsOnChange && leavingStepChanged()) resetStepsAfter(step)
+  }
+
+  // Puts every field of the steps after `index` back to this type's defaults
+  // and locks those steps again.
+  const resetStepsAfter = (index: number) => {
+    const defaults = (
+      parentType === 'daily'
+        ? getTypeDefaults(type as ScheduleType)
+        : getRegularTypeDefaults(regularType ?? 'fixed')
+    ) as Record<string, unknown>
+    const fields = new Set<ScheduleField>()
+    steps.slice(index + 1).forEach(({ id }) => {
+      const stepFields = getStepFields(id, parentType, type)
+      stepFields.forEach((field) => fields.add(field))
+      STEP_DEPENDENT_FIELDS[id]?.forEach((field) => fields.add(field))
+    })
+    // The discriminators pick the steps themselves; they are never "later".
+    fields.delete('type')
+    fields.delete('parent_type')
+    fields.forEach((field) => {
+      if (!(field in defaults)) return
+      // `defaults` is this same type's default record, so the value fits
+      // `field` — TS just can't pair them up across a dynamic key.
+      form.setValue(
+        field,
+        structuredClone(defaults[field]) as PathValue<Schedule, ScheduleField>
+      )
+    })
+    form.clearErrors([...fields])
+    setMaxStep(index)
+  }
+
+  const goToStep = (index: number) => {
+    const target = Math.min(Math.max(index, 0), steps.length - 1)
+    if (target === step) return
+    if (currentStepId === 'assign-to' && regularType === 'rotate') {
+      commitAssignment.current?.()
+      pruneRosterToSelection()
+    }
+    resetLaterStepsIfEdited()
+    setStep(target)
+    stepSnapshot.current = snapshotOf(target)
+  }
+
   const handleNext = async () => {
+    if (currentStepId === 'assign-to' && regularType === 'fixed') {
+      const assignments = (form.getValues('shift_assignments') ?? []) as {
+        employee_ids: string[]
+        team_ids: string[]
+      }[]
+      if (
+        !assignments.some((a) => a.employee_ids.length || a.team_ids.length)
+      ) {
+        form.setError('shift_assignments', {
+          type: 'manual',
+          message: 'Assign at least one team or employee to a shift',
+        })
+        return
+      }
+    }
+
+    if (currentStepId === 'assign-to' && regularType === 'rotate') {
+      const crewIds = form.getValues('crew_ids') as string[] | undefined
+      if (!crewIds?.length) {
+        form.setError('crew_ids', {
+          type: 'manual',
+          message: 'Select at least one team or employee',
+        })
+        return
+      }
+      commitAssignment.current?.()
+      pruneRosterToSelection()
+    }
+
     const valid = await form.trigger(
       getStepFields(currentStepId, parentType, type)
     )
-    if (valid) setStep((s) => Math.min(s + 1, steps.length - 1))
+    if (valid) {
+      // Before advancing, so a changed step wipes the ones ahead of it and
+      // `setMaxStep` below can then re-open the step being stepped onto.
+      resetLaterStepsIfEdited()
+      const next = Math.min(step + 1, steps.length - 1)
+      setStep(next)
+      setMaxStep((m) => Math.max(m, next))
+      stepSnapshot.current = snapshotOf(next)
+    }
   }
 
-  const handleBack = () => setStep((s) => Math.max(s - 1, 0))
+  const handleBack = () => goToStep(step - 1)
 
-  const handleParentTypeChange = (value: string) => {
+  const handleParentTypeChange = (value: ParentScheduleType) => {
     if (value === parentType) return
     const current = form.getValues()
-
     form.reset({
       id: current.id,
       name: current.name,
@@ -258,6 +446,8 @@ export function ScheduleForm({
         : getRegularTypeDefaults('fixed')),
     } as Schedule)
     setStep(0)
+    setMaxStep(0)
+    setIsShiftDialogOpen(false)
   }
 
   const handleTypeChange = (value: string) => {
@@ -282,6 +472,16 @@ export function ScheduleForm({
       ...getRegularTypeDefaults(value),
     } as Schedule)
     setStep(0)
+    setMaxStep(0)
+    setIsShiftDialogOpen(false)
+    // The baseline's form is gone, so it is cleared.
+    stepSnapshot.current = null
+  }
+
+  const handleFormSubmit = (values: Schedule) => {
+    // No backend wired up yet — the toast shows what would be sent.
+    showSubmittedData(values, 'Schedule submitted — JSON payload:')
+    onSubmit(values)
   }
 
   return (
@@ -293,7 +493,7 @@ export function ScheduleForm({
             e.preventDefault()
             return
           }
-          return form.handleSubmit(onSubmit)(e)
+          return form.handleSubmit(handleFormSubmit)(e)
         }}
         className='space-y-6'
       >
@@ -302,12 +502,29 @@ export function ScheduleForm({
             <VerticalTabs
               steps={steps}
               currentStep={step}
-              onStepChange={setStep}
+              onStepChange={goToStep}
+              maxStepReached={maxStep}
+              navigationDisabled={isShiftDialogOpen}
             />
           )}
           <div className='min-w-0 flex-1 space-y-6'>
             {(disabled || currentStepId === 'basics') && (
               <>
+                <FormItem>
+                  <FormLabel>Category</FormLabel>
+                  <MultiSelect
+                    options={PARENT_TYPE_OPTIONS}
+                    value={
+                      PARENT_TYPE_OPTIONS.find((o) => o.value === parentType) ??
+                      null
+                    }
+                    onChange={(opt: { value: ParentScheduleType } | null) =>
+                      opt && handleParentTypeChange(opt.value)
+                    }
+                    isDisabled={disabled}
+                    isClearable={false}
+                  />
+                </FormItem>
                 <FormField
                   control={form.control}
                   name='name'
@@ -342,39 +559,16 @@ export function ScheduleForm({
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name='parent_type'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Type</FormLabel>
-                      <FormControl>
-                        <MultiSelect
-                          options={PARENT_TYPES}
-                          value={
-                            PARENT_TYPES.find((t) => t.value === field.value) ??
-                            null
-                          }
-                          onChange={(opt: { value: string } | null) =>
-                            handleParentTypeChange(opt?.value ?? '')
-                          }
-                          isDisabled={disabled}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 {parentType === 'daily' && (
                   <EmployeeMultiSelect
-                    control={looseControl}
+                    control={form.control}
                     disabled={disabled}
                   />
                 )}
 
                 {parentType === 'regular' && (
-                  <RegularBasicsFields
+                  <ScheduleBasicsFields
                     disabled={disabled}
                     onTypeChange={handleRegularTypeChange}
                   />
@@ -393,7 +587,9 @@ export function ScheduleForm({
                           <TabsTrigger
                             key={t.value}
                             value={t.value}
-                            disabled={disabled}
+                            // Monthly is legacy-only: renders if already
+                            // saved, but can't be switched to.
+                            disabled={disabled || t.value === 'monthly'}
                           >
                             {t.label}
                           </TabsTrigger>
@@ -410,23 +606,49 @@ export function ScheduleForm({
                 </>
               )}
 
-            {(disabled || currentStepId === 'shift-definition') &&
-              parentType === 'regular' &&
-              regularType !== 'rotate' && (
-                <ShiftDefinitionFields disabled={disabled} />
+            {(disabled || currentStepId === 'shifts') &&
+              parentType === 'regular' && (
+                <ShiftPickerField
+                  disabled={disabled}
+                  minSelection={regularType === 'rotate' ? 2 : 1}
+                  onDialogOpenChange={setIsShiftDialogOpen}
+                />
               )}
 
-            {(disabled || currentStepId === 'rotate-config') &&
+            {(disabled || currentStepId === 'pattern') &&
               parentType === 'regular' &&
-              regularType === 'rotate' && <RotateFields disabled={disabled} />}
+              regularType === 'rotate' && (
+                <PatternBuilder disabled={disabled} />
+              )}
 
-            {(disabled || currentStepId === 'recurrence') &&
+            {(disabled || currentStepId === 'occurrence') &&
               parentType === 'regular' &&
-              regularType === 'fixed' &&
-              nbOfShifts === 1 && <RecurrenceFields disabled={disabled} />}
+              regularType === 'fixed' && (
+                <OccurrenceFields disabled={disabled} />
+              )}
+
+            {(disabled || currentStepId === 'assign-to') &&
+              parentType === 'regular' &&
+              regularType === 'rotate' && (
+                <ScheduleAssignToFields
+                  disabled={disabled}
+                  commitRef={commitAssignment}
+                />
+              )}
+
+            {(disabled || currentStepId === 'assign-to') &&
+              parentType === 'regular' &&
+              regularType === 'fixed' && (
+                <FixedAssignToFields disabled={disabled} />
+              )}
+
+            {(disabled || currentStepId === 'end-settings') &&
+              parentType === 'regular' && (
+                <ScheduleStartEndFields disabled={disabled} />
+              )}
 
             {!disabled && currentStepId === 'summary' && (
-              <ScheduleSummary control={looseControl} />
+              <ScheduleSummary control={form.control} />
             )}
 
             {!disabled && (
@@ -435,16 +657,25 @@ export function ScheduleForm({
                   type='button'
                   variant='outline'
                   onClick={handleBack}
-                  disabled={step === 0}
+                  disabled={step === 0 || isShiftDialogOpen}
                 >
                   Back
                 </Button>
                 {isLastStep ? (
-                  <Button key='submit' type='submit'>
+                  <Button
+                    key='submit'
+                    type='submit'
+                    disabled={isShiftDialogOpen}
+                  >
                     {submitLabel}
                   </Button>
                 ) : (
-                  <Button key='next' type='button' onClick={handleNext}>
+                  <Button
+                    key='next'
+                    type='button'
+                    onClick={handleNext}
+                    disabled={isShiftDialogOpen}
+                  >
                     Next
                   </Button>
                 )}

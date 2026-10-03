@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Claude: CLAUDE.md and .claude/handoff/ are checked in — they're shared
+# project context, not machine state. Everything else under .claude/
+# (local settings, permissions, lock files) stays local. Note the pattern
+# has to ignore the directory's *contents* (`.claude/*`), not the
+# directory itself: git can't re-include a path under an ignored dir.
+.claude/*
+!.claude/handoff/
+
+# graphify knowledge-graph output (generated, rebuild with `/graphify .`)
+graphify-out
+
 .env
 
 # Editor directories and files
@@ -32,3 +43,9 @@ dist-ssr
 # Vitest artifacts (browser screenshots/attachments)
 **/__screenshots__/
 .vitest-attachments/
+
+# TanStack Router plugin scratch output (generated)
+.tanstack
+
+# OpenCode bridge runtime state (task inboxes/outboxes, alerts, hook state)
+bridge/

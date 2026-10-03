@@ -15,7 +15,10 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ToggleButton } from '@/components/toggle-button'
 import { MONTHS } from '../../data/data'
+import { type Schedule } from '../../data/schema'
 import { getDaysInMonthArray } from '../../utils'
 import { TimeRangeFields } from './time-range-fields'
 
@@ -24,18 +27,19 @@ type MonthlyFieldsProps = {
 }
 
 export function MonthlyFields({ disabled }: MonthlyFieldsProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { control } = useFormContext<any>()
+  const { control } = useFormContext<Schedule>()
   const year = useWatch({ control, name: 'year' })
-  const { fields: monthFields, append, remove } = useFieldArray({
+  const {
+    fields: monthFields,
+    append,
+    remove,
+  } = useFieldArray({
     control,
     name: 'months',
   })
 
   const toggleMonth = (month: number, checked: boolean) => {
-    const index = monthFields.findIndex(
-      (f) => (f as unknown as { month: number }).month === month
-    )
+    const index = monthFields.findIndex((f) => f.month === month)
     if (checked && index === -1) {
       append({ month, days: [] })
     } else if (!checked && index > -1) {
@@ -67,20 +71,18 @@ export function MonthlyFields({ disabled }: MonthlyFieldsProps) {
       <FormField
         control={control}
         name='months'
-        render={({ fieldState }) => (
+        render={() => (
           <FormItem>
             <FormLabel>Months</FormLabel>
             <div className='grid grid-cols-3 gap-2 sm:grid-cols-4'>
               {MONTHS.map((month) => {
                 const monthNum = Number(month.value)
-                const checked = monthFields.some(
-                  (f) => (f as unknown as { month: number }).month === monthNum
-                )
+                const checked = monthFields.some((f) => f.month === monthNum)
                 return (
-                  <label
+                  <Label
                     key={month.value}
                     className={cn(
-                      'flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm',
+                      'cursor-pointer rounded-md border px-3 py-2 font-normal',
                       checked && 'border-primary'
                     )}
                   >
@@ -92,15 +94,11 @@ export function MonthlyFields({ disabled }: MonthlyFieldsProps) {
                       }
                     />
                     {month.label}
-                  </label>
+                  </Label>
                 )
               })}
             </div>
-            {fieldState.error && (
-              <p className='text-destructive text-sm'>
-                {fieldState.error.message}
-              </p>
-            )}
+            <FormMessage />
           </FormItem>
         )}
       />
@@ -110,7 +108,7 @@ export function MonthlyFields({ disabled }: MonthlyFieldsProps) {
           key={monthField.id}
           control={control}
           monthIndex={monthIndex}
-          month={(monthField as unknown as { month: number }).month}
+          month={monthField.month}
           year={year}
           disabled={disabled}
         />
@@ -120,8 +118,7 @@ export function MonthlyFields({ disabled }: MonthlyFieldsProps) {
 }
 
 type MonthDaysCardProps = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
+  control: Control<Schedule>
   monthIndex: number
   month: number
   year: number
@@ -143,9 +140,7 @@ function MonthDaysCard({
   const monthLabel = MONTHS.find((m) => Number(m.value) === month)?.label
 
   const toggleDay = (day: number, checked: boolean) => {
-    const index = fields.findIndex(
-      (f) => (f as unknown as { day: number }).day === day
-    )
+    const index = fields.findIndex((f) => f.day === day)
     if (checked && index === -1) {
       append({ day, times: [{ from_time: '09:00', to_time: '17:00' }] })
     } else if (!checked && index > -1) {
@@ -156,37 +151,29 @@ function MonthDaysCard({
   return (
     <Card className='gap-3 py-4'>
       <CardHeader className='px-4'>
-        <CardTitle className='text-sm font-medium'>{monthLabel}</CardTitle>
+        <CardTitle className='text-base font-semibold'>{monthLabel}</CardTitle>
       </CardHeader>
       <CardContent className='space-y-4 px-4'>
         <div className='grid grid-cols-7 gap-1.5'>
           {days.map((day) => {
-            const checked = fields.some(
-              (f) => (f as unknown as { day: number }).day === day
-            )
+            const checked = fields.some((f) => f.day === day)
             return (
-              <button
+              <ToggleButton
                 key={day}
-                type='button'
+                selected={checked}
                 disabled={disabled}
                 onClick={() => toggleDay(day, !checked)}
-                className={cn(
-                  'flex size-8 items-center justify-center rounded-md border text-xs',
-                  checked
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-input',
-                  disabled && 'cursor-not-allowed'
-                )}
+                className='size-8 p-0 text-xs'
               >
                 {day}
-              </button>
+              </ToggleButton>
             )
           })}
         </div>
         {fields.map((dayField, dayIndex) => (
           <div key={dayField.id} className='space-y-1'>
-            <p className='text-muted-foreground text-xs font-medium'>
-              Day {(dayField as unknown as { day: number }).day}
+            <p className='text-xs font-medium text-muted-foreground'>
+              Day {dayField.day}
             </p>
             <TimeRangeFields
               control={control}

@@ -13,7 +13,26 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { sidebarData } from './layout/data/sidebar-data'
+import { type NavItem } from './layout/types'
 import { ScrollArea } from './ui/scroll-area'
+
+type CommandNavLink = {
+  url: string
+  // Full path from the nav root, so an entry reads "Time Track > Schedules > Shift policies".
+  trail: string[]
+}
+
+// Flattens the nav to its leaves recursively.
+function flattenNavItems(
+  items: NavItem[],
+  trail: string[] = []
+): CommandNavLink[] {
+  return items.reduce<CommandNavLink[]>((links, item) => {
+    const nextTrail = [...trail, item.title]
+    if (item.url) return [...links, { url: item.url, trail: nextTrail }]
+    return [...links, ...flattenNavItems(item.items ?? [], nextTrail)]
+  }, [])
+}
 
 export function CommandMenu() {
   const navigate = useNavigate()
@@ -36,38 +55,26 @@ export function CommandMenu() {
           <CommandEmpty>No results found.</CommandEmpty>
           {sidebarData.navGroups.map((group) => (
             <CommandGroup key={group.title} heading={group.title}>
-              {group.items.map((navItem, i) => {
-                if (navItem.url)
-                  return (
-                    <CommandItem
-                      key={`${navItem.url}-${i}`}
-                      value={navItem.title}
-                      onSelect={() => {
-                        runCommand(() => navigate({ to: navItem.url }))
-                      }}
-                    >
-                      <div className='flex size-4 items-center justify-center'>
-                        <ArrowRight className='size-2 text-muted-foreground/80' />
-                      </div>
-                      {navItem.title}
-                    </CommandItem>
-                  )
-
-                return navItem.items?.map((subItem, i) => (
-                  <CommandItem
-                    key={`${navItem.title}-${subItem.url}-${i}`}
-                    value={`${navItem.title}-${subItem.url}`}
-                    onSelect={() => {
-                      runCommand(() => navigate({ to: subItem.url }))
-                    }}
-                  >
-                    <div className='flex size-4 items-center justify-center'>
-                      <ArrowRight className='size-2 text-muted-foreground/80' />
-                    </div>
-                    {navItem.title} <ChevronRight /> {subItem.title}
-                  </CommandItem>
-                ))
-              })}
+              {flattenNavItems(group.items).map(({ url, trail }, i) => (
+                <CommandItem
+                  key={`${url}-${i}`}
+                  // Searchable by any level of the trail, not just the leaf.
+                  value={trail.join(' ')}
+                  onSelect={() => {
+                    runCommand(() => navigate({ to: url }))
+                  }}
+                >
+                  <div className='flex size-4 items-center justify-center'>
+                    <ArrowRight className='size-2 text-muted-foreground/80' />
+                  </div>
+                  {trail.map((title, depth) => (
+                    <React.Fragment key={title}>
+                      {depth > 0 && <ChevronRight className='size-3' />}
+                      {title}
+                    </React.Fragment>
+                  ))}
+                </CommandItem>
+              ))}
             </CommandGroup>
           ))}
           <CommandSeparator />

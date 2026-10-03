@@ -1,5 +1,5 @@
-import { Plus, Trash2 } from 'lucide-react'
 import { type Control, useFieldArray, useWatch } from 'react-hook-form'
+import { Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,16 +9,20 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { type TimeRange } from '../../data/schema'
+import { type Schedule } from '../../data/schema'
 import { calculateHours } from '../../utils'
 
+// Every place a daily schedule keeps a list of time ranges.
+type TimeRangesPath =
+  | `days.${number}.times`
+  | `months.${number}.days.${number}.times`
+
 type TimeRangeFieldsProps = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
-  name: string
+  control: Control<Schedule>
+  name: TimeRangesPath
   disabled?: boolean
-  // When set, the range count is externally controlled (e.g. by a split
-  // number elsewhere in the form) so add/remove controls are hidden.
+  // When set, the range count is externally controlled, so add/remove
+  // controls are hidden.
   fixedCount?: boolean
 }
 
@@ -29,7 +33,7 @@ export function TimeRangeFields({
   fixedCount,
 }: TimeRangeFieldsProps) {
   const { fields, append, remove } = useFieldArray({ control, name })
-  const times = (useWatch({ control, name }) as TimeRange[] | undefined) ?? []
+  const times = useWatch({ control, name }) ?? []
   const hours = calculateHours(times)
 
   return (
@@ -53,7 +57,7 @@ export function TimeRangeFields({
               </FormItem>
             )}
           />
-          <span className='text-muted-foreground pt-2 text-sm'>to</span>
+          <span className='pt-2 text-sm text-muted-foreground'>to</span>
           <FormField
             control={control}
             name={`${name}.${index}.to_time`}

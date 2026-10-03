@@ -1,0 +1,95 @@
+import { ImageIcon, XIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { SHIFT_ICON_OPTIONS } from '../../data/data'
+import { type ShiftIcon } from '../../data/schema'
+
+type IconPickerFieldProps = {
+  value: ShiftIcon | undefined
+  onChange: (value: ShiftIcon | undefined) => void
+  disabled?: boolean
+  // Break rows always carry an icon with no real "no icon" state, so that
+  // usage hides this button; a shift's own icon is optional and keeps it.
+  showClear?: boolean
+}
+
+export function IconPickerField({
+  value,
+  onChange,
+  disabled,
+  showClear = true,
+}: IconPickerFieldProps) {
+  const selected = SHIFT_ICON_OPTIONS.find((o) => o.value === value)
+  const SelectedIcon = selected?.icon
+
+  return (
+    <div className='flex items-center gap-2'>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type='button'
+            variant='outline'
+            size='icon'
+            disabled={disabled}
+            title={selected ? selected.label : 'Select an icon'}
+            aria-label={selected ? `Icon: ${selected.label}` : 'Select an icon'}
+          >
+            {selected && SelectedIcon ? (
+              <SelectedIcon className='size-4' />
+            ) : (
+              <ImageIcon className='size-4 text-muted-foreground' />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className='w-64 p-0'>
+          <Command>
+            <CommandInput placeholder='Search icons...' />
+            <CommandList>
+              <CommandEmpty>No icon found.</CommandEmpty>
+              {/* cmdk renders items inside a nested [cmdk-group-items] div, so it is targeted directly. */}
+              <CommandGroup className='**:[[cmdk-group-items]]:flex **:[[cmdk-group-items]]:flex-wrap **:[[cmdk-group-items]]:gap-1'>
+                {SHIFT_ICON_OPTIONS.map((o) => (
+                  <CommandItem
+                    key={o.value}
+                    value={o.label}
+                    title={o.label}
+                    onSelect={() => onChange(o.value)}
+                    className={cn(
+                      'w-[18%] flex-none justify-center py-2',
+                      value === o.value && 'bg-accent'
+                    )}
+                  >
+                    <o.icon className='size-4' />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {value && !disabled && showClear && (
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          onClick={() => onChange(undefined)}
+        >
+          <XIcon className='size-4' />
+        </Button>
+      )}
+    </div>
+  )
+}

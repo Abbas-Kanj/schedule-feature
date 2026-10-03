@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { SelectDropdown } from '@/components/select-dropdown'
+import { ToggleButton } from '@/components/toggle-button'
 import { MONTHS } from '../../data/data'
-import { type DayOfWeek } from '../../data/schema'
+import { type DayOfWeek, type Schedule } from '../../data/schema'
 import { getDaysOfMonth } from '../../utils'
 import { TimeRangeFields } from './time-range-fields'
 
@@ -24,8 +25,7 @@ type WeeklyFieldsProps = {
 }
 
 export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { control, setValue } = useFormContext<any>()
+  const { control, setValue } = useFormContext<Schedule>()
   const year = useWatch({ control, name: 'year' })
   const month = useWatch({ control, name: 'month' })
   const week = useWatch({ control, name: 'week' })
@@ -64,16 +64,14 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
 
     const rangeWeekdays = new Set<string>(newRangeDays.map((d) => d.weekday))
     const removeIndices = fields
-      .map((f, i) => ({ day: (f as unknown as { day: string }).day, i }))
+      .map((f, i) => ({ day: f.day, i }))
       .filter(({ day }) => !rangeWeekdays.has(day))
       .map(({ i }) => i)
     if (removeIndices.length) remove(removeIndices)
   }
 
   const toggleDay = (day: DayOfWeek, checked: boolean) => {
-    const index = fields.findIndex(
-      (f) => (f as unknown as { day: string }).day === day
-    )
+    const index = fields.findIndex((f) => f.day === day)
     if (checked && index === -1) {
       append({ day, times: [{ from_time: '09:00', to_time: '17:00' }] })
     } else if (!checked && index > -1) {
@@ -130,7 +128,7 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
           <FormLabel>Pick a starting day</FormLabel>
           <div className='grid grid-cols-7 gap-1 text-center'>
             {WEEKDAY_HEADERS.map((h) => (
-              <div key={h} className='text-muted-foreground text-xs'>
+              <div key={h} className='text-xs text-muted-foreground'>
                 {h}
               </div>
             ))}
@@ -143,22 +141,18 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
                 (r) => r.date_str === d.date_str
               )
               return (
-                <button
+                <ToggleButton
                   key={d.date_str}
-                  type='button'
+                  selected={inRange}
                   disabled={disabled}
                   onClick={() => handleSelectStart(d.date_str)}
                   className={cn(
-                    'rounded-md border p-2 text-sm transition-colors',
-                    inRange
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'hover:bg-accent',
-                    isStart && 'ring-primary ring-2 ring-offset-1',
-                    disabled && 'cursor-not-allowed'
+                    'h-9 w-full px-1 text-sm',
+                    isStart && 'ring-2 ring-primary ring-offset-1'
                   )}
                 >
                   {format(d.date, 'd')}
-                </button>
+                </ToggleButton>
               )
             })}
           </div>
@@ -171,7 +165,7 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
           <FormLabel>
             Number of consecutive days (max 7)
             {selectedRangeDays.length > 0 && (
-              <span className='text-muted-foreground ml-2 font-normal'>
+              <span className='ml-2 font-normal text-muted-foreground'>
                 {format(selectedRangeDays[0].date, 'MMM d')} –{' '}
                 {format(
                   selectedRangeDays[selectedRangeDays.length - 1].date,
@@ -182,21 +176,15 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
           </FormLabel>
           <div className='flex gap-2'>
             {Array.from({ length: 7 }, (_, i) => i + 1).map((length) => (
-              <button
+              <ToggleButton
                 key={length}
-                type='button'
+                selected={length === selectedRangeDays.length}
                 disabled={disabled || length > maxLength}
                 onClick={() => handleSelectLength(length)}
-                className={cn(
-                  'h-8 w-8 rounded-md border text-sm transition-colors',
-                  length === selectedRangeDays.length
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'hover:bg-accent disabled:hover:bg-transparent',
-                  length > maxLength && 'cursor-not-allowed opacity-40'
-                )}
+                className='size-8 p-0 text-sm'
               >
                 {length}
-              </button>
+              </ToggleButton>
             ))}
           </div>
         </FormItem>
@@ -206,14 +194,12 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
         <FormField
           control={control}
           name='days'
-          render={({ fieldState }) => (
+          render={() => (
             <FormItem>
               <FormLabel>Days</FormLabel>
               <div className='grid gap-3 sm:grid-cols-2'>
                 {selectedRangeDays.map((d) => {
-                  const index = fields.findIndex(
-                    (f) => (f as unknown as { day: string }).day === d.weekday
-                  )
+                  const index = fields.findIndex((f) => f.day === d.weekday)
                   const checked = index > -1
 
                   return (
@@ -224,7 +210,7 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
                       }
                     >
                       <CardHeader className='px-3'>
-                        <CardTitle className='flex items-center gap-2 text-sm font-medium'>
+                        <CardTitle className='flex items-center gap-2 text-base font-semibold'>
                           <Checkbox
                             checked={checked}
                             disabled={disabled}
@@ -234,7 +220,7 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
                           />
                           {d.weekday.charAt(0).toUpperCase() +
                             d.weekday.slice(1)}
-                          <span className='text-muted-foreground text-xs font-normal'>
+                          <span className='text-xs font-normal text-muted-foreground'>
                             {format(d.date, 'MMM d')}
                           </span>
                         </CardTitle>
@@ -252,11 +238,7 @@ export function WeeklyFields({ disabled }: WeeklyFieldsProps) {
                   )
                 })}
               </div>
-              {fieldState.error && (
-                <p className='text-destructive text-sm'>
-                  {fieldState.error.message}
-                </p>
-              )}
+              <FormMessage />
             </FormItem>
           )}
         />

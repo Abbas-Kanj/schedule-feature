@@ -28,10 +28,8 @@ async function renderWithSearchProvider() {
   return await render(<SearchProvider>{null}</SearchProvider>)
 }
 
-/**
- * Open the palette by shortcut, retrying while the keydown listener may not be mounted yet.
- * Waits between attempts so a successful toggle is not immediately undone by a second chord.
- */
+// Retries since the keydown listener may not be mounted yet; waits between
+// attempts so a successful toggle isn't immediately undone by a second chord.
 async function openCommandPalette(
   screen: RenderResult,
   modifier: ShortcutModifier = 'Control'
@@ -73,7 +71,7 @@ describe('SearchProvider and CommandMenu', () => {
     await expect.element(getByText('Light')).toBeInTheDocument()
     await expect.element(getByText('Dark')).toBeInTheDocument()
     await expect.element(getByText('System')).toBeInTheDocument()
-    await expect.element(getByText('Dashboard')).toBeInTheDocument()
+    await expect.element(getByText('Team Management')).toBeInTheDocument()
   })
 
   it('does not show the dialog content when search is closed', async () => {
@@ -109,9 +107,9 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(screen.getByText('Tasks'))
+    await userEvent.click(screen.getByText('Team Management'))
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/tasks' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/teams' })
     await expect
       .element(screen.getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .not.toBeInTheDocument()
@@ -123,9 +121,13 @@ describe('SearchProvider and CommandMenu', () => {
 
     await openCommandPalette(screen)
 
-    await userEvent.click(getByRole('option', { name: 'Settings Account' }))
+    await userEvent.click(
+      getByRole('option', {
+        name: /Time Track.*Shift management.*Shift policies/,
+      })
+    )
 
-    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/account' })
+    expect(mocks.navigate).toHaveBeenCalledWith({ to: '/shift-policies' })
     await expect
       .element(getByPlaceholder(COMMAND_MENU_PLACEHOLDER))
       .not.toBeInTheDocument()

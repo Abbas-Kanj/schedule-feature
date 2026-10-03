@@ -1,0 +1,264 @@
+import { addDays, format, parse } from 'date-fns'
+import { FormProvider, useForm, useWatch } from 'react-hook-form'
+import { describe, expect, it } from 'vitest'
+import { render } from 'vitest-browser-react'
+import { userEvent } from 'vitest/browser'
+import { isRotateSchedule } from '@/features/schedule-rotation/utils'
+import { sampleSchedules } from '../../data/schedules.fixtures'
+import { type RotateDayCoverage } from '../../data/schema'
+import { crewSelectionFromDayCoverage } from '../../rotation-crews'
+import { ScheduleAssignToFields } from './schedule-assign-to-fields'
+
+const seed = sampleSchedules.find((s) => s.id === 'sched-rotation')!
+if (!isRotateSchedule(seed)) throw new Error('Seed is not a rotate schedule')
+const rotation = seed
+
+// Echoes the stored matrix into the DOM so a pick can be asserted as form
+// state rather than a rendered chip.
+function CoverageState() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const coverage = useWatch<any>({ name: 'day_coverage' }) as
+    | RotateDayCoverage[]
+    | undefined
+  const cells = coverage ?? []
+  return (
+    <>
+      <output data-testid='cells'>
+        {cells
+          .map(
+            (cell) =>
+              `${cell.day}:${cell.shift_id}=${[
+                ...cell.team_ids,
+                ...cell.employee_ids,
+              ].join('+')}`
+          )
+          .sort()
+          .join(' ')}
+      </output>
+      <output data-testid='crew-keys'>
+        {[
+          ...new Set(
+            cells.flatMap((cell) => [
+              ...cell.team_ids.map((id) => `team:${id}`),
+              ...cell.employee_ids.map((id) => `employee:${id}`),
+            ])
+          ),
+        ]
+          .sort()
+          .join(',')}
+      </output>
+    </>
+  )
+}
+
+function Harness({ values = rotation }: { values?: typeof rotation }) {
+  // The wizard recovers the pool from a saved roster the same way on load.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const form = useForm<any>({
+    defaultValues: values.crew_ids?.length
+      ? values
+      : { ...values, ...crewSelectionFromDayCoverage(values.day_coverage) },
+  })
+  return (
+    <FormProvider {...form}>
+      <ScheduleAssignToFields />
+      <CoverageState />
+    </FormProvider>
+  )
+}
+
+type Screen = Awaited<ReturnType<typeof render>>
+
+async function enableManual(screen: Screen) {
+  await userEvent.click(screen.getByRole('button', { name: 'Assign manually' }))
+}
+
+describe('ScheduleAssignToFields', () => {
+  it('hides the manual grid until its view is selected', async () => {
+    const screen = await render(<Harness />)
+
+    await expect
+      .element(screen.getByTestId('assign-day-0'))
+      .not.toBeInTheDocument()
+    await enableManual(screen)
+    await expect.element(screen.getByTestId('assign-day-0')).toBeVisible()
+  })
+
+  it('renders one day card per cycle position, labelled by its real date', async () => {
+    const screen = await render(<Harness />)
+    await enableManual(screen)
+
+    // Card-a-day pattern, so cycle day i is simply start + i.
+    const start = parse(rotation.start_date, 'yyyy-MM-dd', new Date())
+    for (let i = 0; i < 4; i++) {
+      const card = screen.getByTestId(`assign-day-${i}`)
+      await expect.element(card).toBeVisible()
+      await expect
+        .element(card.getByText(format(addDays(start, i), 'EEE d MMM')))
+        .toBeVisible()
+    }
+  })
+
+  it('holds back the assignment until the start and end are set', async () => {
+    const screen = await render(
+      <Harness
+        values={{
+          ...rotation,
+          end_settings: { end_type: 'on_date' },
+        }}
+      />
+    )
+
+    await expect.element(screen.getByTestId('dates-required')).toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: 'Suggest assignment' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: 'Assign manually' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('starts the pool from the wizard pick when nobody is placed yet', async () => {
+    const screen = await render(
+      <Harness
+        values={{
+          ...rotation,
+          day_coverage: [],
+          crew_placements: [],
+          crew_kind: 'team',
+          crew_ids: ['team-b'],
+        }}
+      />
+    )
+
+    await expect.element(screen.getByText('Team B')).toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: 'Suggest assignment' }))
+      .toBeEnabled()
+  })
+
+  it('shows the employees table instead of a crew grid or start-day editor', async () => {
+    const screen = await render(<Harness />)
+
+    await expect.element(screen.getByText('Employee Name')).toBeVisible()
+    await expect
+      .element(screen.getByText('Crew start days'))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByText('Crew', { exact: true }))
+      .not.toBeInTheDocument()
+  })
+
+  it('gives every selected shift its own picker on every day', async () => {
+    const screen = await render(<Harness />)
+    await enableManual(screen)
+
+    // Three selected shifts, so three pickers per card — even the rest card,
+    // which still has to be staffed.
+    for (const day of [0, 3]) {
+      const card = screen.getByTestId(`assign-day-${day}`)
+      expect(await card.getByRole('combobox').all()).toHaveLength(3)
+      for (const name of ['Morning', 'Afternoon', 'Night']) {
+        await expect.element(card.getByText(name)).toBeVisible()
+      }
+    }
+  })
+
+  it('shows the crew each cell is already assigned', async () => {
+    const screen = await render(<Harness />)
+    await enableManual(screen)
+
+    // Scoped to the card: a crew name also appears in the pool picker and
+    // the coverage grid.
+    await expect
+      .element(
+        screen.getByTestId('assign-day-0').getByText('Amir Nabil Haddad')
+      )
+      .toBeVisible()
+    await expect
+      .element(
+        screen.getByTestId('assign-day-3').getByText('Dana Leila Salameh')
+      )
+      .toBeVisible()
+  })
+
+  it('offers only the crew kind already in use, not both', async () => {
+    const screen = await render(<Harness />)
+    await enableManual(screen)
+
+    // The seed staffs cells with `employee_ids`, so the cards offer employees
+    // only.
+    const card = screen.getByTestId('assign-day-0')
+    await expect.element(card.getByText('Team A')).not.toBeInTheDocument()
+    await expect.element(card.getByText('Amir Nabil Haddad')).toBeVisible()
+  })
+
+  it('writes a free cell edit straight to that one cell', async () => {
+    const screen = await render(<Harness />)
+    await enableManual(screen)
+
+    // Day 4's Morning cell — seeded with Bilal. Adding Dana must not disturb
+    // any other cell.
+    const cell = screen
+      .getByTestId('assign-day-3')
+      .getByRole('combobox')
+      .first()
+    await userEvent.click(cell)
+    await userEvent.fill(cell, 'Dana')
+    await userEvent.keyboard('{Enter}')
+
+    await expect
+      .element(screen.getByTestId('cells'))
+      .toHaveTextContent('3:shift-morning=emp-b+emp-d')
+    // The rest of the matrix is untouched — Dana is still on her own cells.
+    await expect
+      .element(screen.getByTestId('cells'))
+      .toHaveTextContent('1:shift-morning=emp-d')
+  })
+
+  it('drops a cell entirely once its last crew is removed', async () => {
+    const screen = await render(<Harness />)
+    await enableManual(screen)
+
+    const cell = screen
+      .getByTestId('assign-day-0')
+      .getByRole('combobox')
+      .first()
+    await userEvent.click(cell)
+    // Backspace on an empty input clears the last selected value in
+    // react-select, which is what a user reaching for "remove" actually does.
+    await userEvent.keyboard('{Backspace}')
+
+    await expect
+      .element(screen.getByTestId('cells'))
+      .not.toHaveTextContent('0:shift-morning=')
+  })
+
+  it('suggests an assignment that covers every shift every day', async () => {
+    const screen = await render(<Harness />)
+
+    // The seeded rotation is staffed by individual employees, so the pool
+    // opens in Employees mode — switch it before picking teams.
+    await userEvent.click(screen.getByRole('button', { name: 'Teams' }))
+
+    // Pool picker is the step's first combobox, part of the Suggest view.
+    const pool = screen.getByRole('combobox').first()
+    for (const team of ['Team A', 'Team B']) {
+      await userEvent.click(pool)
+      await userEvent.fill(pool, team)
+      await userEvent.keyboard('{Enter}')
+    }
+    // The menu stays open over the button otherwise, and swallows the click.
+    await userEvent.keyboard('{Escape}')
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Suggest assignment' })
+    )
+
+    // The seeded employees are gone and both teams are placed — a whole-field
+    // write, so nothing can be left behind to double-book a cell.
+    await expect
+      .element(screen.getByTestId('crew-keys'))
+      .toHaveTextContent('team:team-a,team:team-b')
+  })
+})

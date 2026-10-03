@@ -1,7 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form'
+import { GripVerticalIcon } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   FormControl,
   FormField,
@@ -9,27 +17,72 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { SelectDropdown } from '@/components/select-dropdown'
-import { type RotateBlock, type RotatePatternEntry } from '../../data/schema'
+import { ShiftSwatch } from '@/features/shifts/components/shift-swatch'
+import { SHIFT_ICON_COMPONENTS } from '@/features/shifts/data/data'
+import { useShiftsStore } from '@/features/shifts/stores/shifts-store'
+import {
+  CYCLE_LENGTH_QUICK_PICKS,
+  CYCLE_LENGTH_UNIT_DAY_MULTIPLIERS,
+  CYCLE_LENGTH_UNIT_OPTIONS,
+  CYCLE_TYPE_OPTIONS,
+  SHIFT_REPEAT_FREQUENCY_OPTIONS,
+} from '../../data/data'
+import {
+  ROTATION_PRESETS,
+  ROTATION_PRESET_GROUPS,
+  getRotationPreset,
+} from '../../data/rotation-presets'
+import {
+  type RotatePatternEntry,
+  type ShiftRepeat,
+  type Schedule,
+} from '../../data/schema'
 import { DirectionPreview } from './direction-preview'
+import { PerShiftRecurrenceFields } from './per-shift-recurrence-fields'
 
 type PatternBuilderProps = {
   disabled?: boolean
 }
 
 export function PatternBuilder({ disabled }: PatternBuilderProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { control, getValues } = useFormContext<any>()
+  const { control, getValues, setValue } = useFormContext<Schedule>()
+  const shifts = useShiftsStore((s) => s.shifts)
+  const shiftIds =
+    (useWatch({ control, name: 'shift_ids' }) as string[] | undefined) ?? []
   const cycleLength = useWatch({ control, name: 'cycle_length' }) as
     | { unit: string; days: number }
     | undefined
-  const blocks =
-    (useWatch({ control, name: 'blocks' }) as RotateBlock[] | undefined) ?? []
+  const cycleType = useWatch({ control, name: 'cycle_type' }) as
+    | string
+    | undefined
+  const shiftRepeatRaw = useWatch({ control, name: 'shift_repeat' }) as
+    | ShiftRepeat[]
+    | undefined
+  const shiftRepeat = useMemo(() => shiftRepeatRaw ?? [], [shiftRepeatRaw])
+
+  const isCustomShifts = cycleType === 'custom_shifts'
   const days = cycleLength?.days ?? 0
+
+  const totalPatternLength = isCustomShifts
+    ? shiftRepeat.reduce((sum, r) => sum + r.interval, 0)
+    : days
 
   const { fields, replace } = useFieldArray({ control, name: 'pattern' })
 
+  // Keep `pattern` synced with `cycle_length.days`.
   useEffect(() => {
+    if (isCustomShifts) return
     if (!days) return
     const current =
       (getValues('pattern') as RotatePatternEntry[] | undefined) ?? []
@@ -37,93 +90,699 @@ export function PatternBuilder({ disabled }: PatternBuilderProps) {
     const next = Array.from(
       { length: days },
       (_, i) =>
-        current[i] ?? { position: i + 1, is_off: false, block_id: undefined }
+        current[i] ?? { position: i + 1, is_off: true, shift_id: undefined }
     )
     replace(next)
-  }, [days])
+  }, [days, isCustomShifts])
 
-  const blockOptions = blocks.map((b) => ({ value: b.id, label: b.label }))
+  // Auto-populate `pattern` from `shift_repeat`. Idempotent against a `pattern`
+  // that already matches `shift_repeat`'s composition, so a manual drag-reorder
+  // survives revisiting the step; only rebuilds when the composition itself
+  // changed (shift added/removed, or an `interval` changed).
+  useEffect(() => {
+    if (!isCustomShifts) return
+    if (totalPatternLength <= 0) {
+      replace([])
+      return
+    }
+
+    const expectedCounts = new Map<string, number>()
+    for (const r of shiftRepeat) {
+      expectedCounts.set(
+        r.shift_id,
+        (expectedCounts.get(r.shift_id) ?? 0) + r.interval
+      )
+    }
+
+    const current =
+      (getValues('pattern') as RotatePatternEntry[] | undefined) ?? []
+    const currentCounts = new Map<string, number>()
+    for (const p of current) {
+      if (!p.is_off && p.shift_id) {
+        currentCounts.set(p.shift_id, (currentCounts.get(p.shift_id) ?? 0) + 1)
+      }
+    }
+    const alreadyMatches =
+      current.length === totalPatternLength &&
+      expectedCounts.size === currentCounts.size &&
+      [...expectedCounts].every(
+        ([id, count]) => currentCounts.get(id) === count
+      )
+    if (alreadyMatches) return
+
+    // The roster lives on `day_coverage`, not the cards, so a card is only
+    // ever a shift or a rest day.
+    const next: RotatePatternEntry[] = []
+    let position = 1
+    for (const r of shiftRepeat) {
+      for (let i = 0; i < r.interval; i++, position++) {
+        next.push({ position, is_off: false, shift_id: r.shift_id })
+      }
+    }
+    while (position <= totalPatternLength) {
+      next.push({ position, is_off: true, shift_id: undefined })
+      position++
+    }
+    replace(next)
+  }, [isCustomShifts, totalPatternLength, shiftRepeat, replace, getValues])
+
+  // Writes `cycle_length` before the cards so the sync effect above sees `days`
+  // already matching the new pattern length. `unit: 'custom_days'` because a
+  // 14- or 28-day cycle isn't a whole number of week/month units.
+  function applyPreset(presetId: string) {
+    const preset = getRotationPreset(presetId)
+    if (!preset || shiftIds.length === 0) return
+
+    const cards = preset.buildCards(shiftIds.length)
+
+    setValue(
+      'cycle_length',
+      { unit: 'custom_days', days: cards.length },
+      { shouldDirty: true }
+    )
+
+    replace(
+      cards.map((card, i) => ({
+        position: i + 1,
+        is_off: card === null,
+        shift_id: card === null ? undefined : shiftIds[card % shiftIds.length],
+      }))
+    )
+  }
+
+  const shiftOptions = shiftIds
+    .map((id) => shifts.find((s) => s.id === id))
+    .filter((s): s is NonNullable<typeof s> => s !== undefined)
+    .map((s) => ({ value: s.id, label: s.name }))
 
   return (
-    <Card className='gap-3 py-4'>
-      <CardHeader className='px-4'>
-        <CardTitle className='text-sm font-medium'>Create pattern</CardTitle>
-      </CardHeader>
-      <CardContent className='space-y-3 px-4'>
-        {!days ? (
-          <p className='text-sm text-muted-foreground'>
-            Set the cycle length to build the pattern.
-          </p>
-        ) : (
-          fields.map((field, index) => (
-            <PatternRow
+    <div className='space-y-4'>
+      <Card className='gap-3 py-4'>
+        <CardHeader className='px-4'>
+          <CardTitle className='text-base font-semibold'>
+            Create pattern
+          </CardTitle>
+        </CardHeader>
+        <CardContent className='space-y-3 px-4'>
+          <FormField
+            control={control}
+            name='cycle_type'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Pattern type</FormLabel>
+                <SelectDropdown
+                  isControlled
+                  defaultValue={field.value}
+                  onValueChange={field.onChange}
+                  placeholder='Select a pattern type'
+                  items={CYCLE_TYPE_OPTIONS}
+                  disabled={disabled}
+                />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* custom_shifts derives its own cards from the repeat rows below. */}
+          {!isCustomShifts && (
+            <PatternPresetPicker
+              shiftIds={shiftIds}
+              disabled={disabled}
+              onApply={applyPreset}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {!isCustomShifts && (
+        <Card className='gap-3 py-4'>
+          <CardHeader className='px-4'>
+            <CardTitle className='text-base font-semibold'>
+              Cycle length
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-3 px-4'>
+            <FormField
+              control={control}
+              name='cycle_length.unit'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Unit</FormLabel>
+                  <SelectDropdown
+                    isControlled
+                    defaultValue={field.value}
+                    onValueChange={(unit) => {
+                      field.onChange(unit)
+                      const multiplier =
+                        CYCLE_LENGTH_UNIT_DAY_MULTIPLIERS[
+                          unit as keyof typeof CYCLE_LENGTH_UNIT_DAY_MULTIPLIERS
+                        ]
+                      if (multiplier) {
+                        setValue('cycle_length.days', multiplier, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        })
+                      } else if (!cycleLength?.days) {
+                        setValue('cycle_length.days', 6, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        })
+                      }
+                    }}
+                    placeholder='Select a unit'
+                    items={CYCLE_LENGTH_UNIT_OPTIONS}
+                    disabled={disabled}
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {cycleLength?.unit === 'custom_days' ? (
+              <FormField
+                control={control}
+                name='cycle_length.days'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cycle length (days)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        min={1}
+                        disabled={disabled}
+                        value={field.value ?? ''}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber)}
+                      />
+                    </FormControl>
+                    {!disabled && (
+                      <div className='flex flex-wrap gap-1.5 pt-1'>
+                        {CYCLE_LENGTH_QUICK_PICKS.map((quickPickDays) => (
+                          <Button
+                            key={quickPickDays}
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            className={cn(
+                              'h-7',
+                              cycleLength?.days === quickPickDays &&
+                                'border-primary'
+                            )}
+                            onClick={() => field.onChange(quickPickDays)}
+                          >
+                            {quickPickDays}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <FormField
+                control={control}
+                name='cycle_length.days'
+                render={({ field }) => {
+                  const isMonthly = cycleLength?.unit === 'monthly'
+                  const multiplier =
+                    CYCLE_LENGTH_UNIT_DAY_MULTIPLIERS[
+                      (cycleLength?.unit ??
+                        'weekly') as keyof typeof CYCLE_LENGTH_UNIT_DAY_MULTIPLIERS
+                    ] ?? 7
+                  const count = field.value
+                    ? Math.round(field.value / multiplier)
+                    : ''
+                  return (
+                    <FormItem>
+                      <FormLabel>
+                        Cycle length ({isMonthly ? 'month(s)' : 'week(s)'})
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type='number'
+                          min={1}
+                          disabled={disabled}
+                          value={count}
+                          onChange={(e) => {
+                            const nextCount = e.target.valueAsNumber
+                            field.onChange(
+                              Number.isNaN(nextCount)
+                                ? undefined
+                                : nextCount * multiplier
+                            )
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )
+                }}
+              />
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {isCustomShifts && shiftOptions.length > 0 && (
+        <PerShiftRecurrenceFields
+          name='shift_repeat'
+          title='Shift repeats'
+          shiftIds={shiftIds}
+          frequencyOptions={SHIFT_REPEAT_FREQUENCY_OPTIONS}
+          // Weekly + Monday, so a new row isn't immediately invalid (weekly requires
+          // >=1 weekday — see `refineRecurrenceRule` in `data/schema.ts`).
+          defaultRule={{ frequency: 'weekly', interval: 1, weekdays: ['mon'] }}
+          disabled={disabled}
+        />
+      )}
+
+      {((isCustomShifts && totalPatternLength > 0) ||
+        (!isCustomShifts && days > 0)) &&
+        shiftOptions.length > 0 && (
+          <Card className='gap-3 py-4'>
+            <CardHeader className='px-4'>
+              <CardTitle className='text-base font-semibold'>Pattern</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-3 px-4'>
+              <PatternDayGrid
+                fields={fields}
+                shiftOptions={shiftOptions}
+                cycleLengthUnit={cycleLength?.unit}
+                disabled={disabled}
+                // Reassigning by dropdown isn't offered here; only reordering applies.
+                isCustomShifts={isCustomShifts}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+      {!isCustomShifts && !days && (
+        <p className='text-sm text-muted-foreground'>
+          Set the cycle length to build the pattern.
+        </p>
+      )}
+
+      {shiftOptions.length === 0 && (
+        <p className='text-sm text-muted-foreground'>
+          Pick shifts in the previous step to assign them to days.
+        </p>
+      )}
+
+      <DirectionPreview />
+    </div>
+  )
+}
+
+type PatternDayGridProps = {
+  fields: { id: string }[]
+  shiftOptions: { value: string; label: string }[]
+  cycleLengthUnit?: string
+  disabled?: boolean
+  // "Custom alternate" only — swaps cards by drag-and-drop instead of a
+  // per-day dropdown (see `PatternDayCard`).
+  isCustomShifts?: boolean
+}
+
+// The cycle length input stores month counts as `count * 30` (see the Cycle
+// length card), so a monthly cycle's day count is always a multiple of this.
+const DAYS_PER_MONTH_BOX = 30
+
+type DropTarget = { index: number; side: 'before' | 'after' }
+
+// Dragging one card onto another moves it into that slot and shifts cards
+// between over by one, rather than swapping. State lives in the grid, not the
+// card, since a drag started on one card updates a sibling's drop-line
+// indicator.
+function usePatternReorder() {
+  const { getValues, setValue } = useFormContext<Schedule>()
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
+
+  return {
+    draggingIndex,
+    dropTarget,
+    start(index: number) {
+      setDraggingIndex(index)
+    },
+    hover(index: number, side: DropTarget['side']) {
+      if (index === draggingIndex) {
+        setDropTarget(null)
+        return
+      }
+      setDropTarget((prev) =>
+        prev?.index === index && prev.side === side ? prev : { index, side }
+      )
+    },
+    end() {
+      setDraggingIndex(null)
+      setDropTarget(null)
+    },
+    drop() {
+      const from = draggingIndex
+      const to = dropTarget
+      setDraggingIndex(null)
+      setDropTarget(null)
+      if (from == null || !to || from === to.index) return
+
+      const pattern = getValues('pattern') as RotatePatternEntry[]
+      // `position` is the slot, so it stays with the index.
+      const content = pattern.map((p) => ({
+        is_off: p.is_off,
+        shift_id: p.shift_id,
+      }))
+      const [moved] = content.splice(from, 1)
+      let insertAt = to.side === 'after' ? to.index + 1 : to.index
+      // Removing `from` shifted every later index left by one.
+      if (from < insertAt) insertAt--
+      content.splice(insertAt, 0, moved)
+
+      content.forEach((c, i) => {
+        setValue(`pattern.${i}.shift_id`, c.shift_id, {
+          shouldValidate: true,
+          shouldDirty: true,
+        })
+        setValue(`pattern.${i}.is_off`, c.is_off, {
+          shouldValidate: true,
+          shouldDirty: true,
+        })
+      })
+    },
+  }
+}
+
+type PatternReorder = ReturnType<typeof usePatternReorder>
+
+// Hint that cards can be dragged to reorder.
+function PatternDragHint() {
+  return (
+    <p className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+      <GripVerticalIcon className='size-3.5 shrink-0' />
+      Drag and drop a day card to move it
+    </p>
+  )
+}
+
+function PatternDayGrid({
+  fields,
+  shiftOptions,
+  cycleLengthUnit,
+  disabled,
+  isCustomShifts,
+}: PatternDayGridProps) {
+  const [openMonthIndex, setOpenMonthIndex] = useState<number | null>(null)
+  const isMonthly = cycleLengthUnit === 'monthly'
+  const reorder = usePatternReorder()
+
+  if (!isMonthly) {
+    return (
+      <div className='space-y-2'>
+        {isCustomShifts && !disabled && <PatternDragHint />}
+        <div className='grid grid-cols-3 gap-2 sm:grid-cols-7'>
+          {fields.map((field, index) => (
+            <PatternDayCard
               key={field.id}
               index={index}
-              blockOptions={blockOptions}
+              shiftOptions={shiftOptions}
               disabled={disabled}
+              isCustomShifts={isCustomShifts}
+              reorder={reorder}
             />
-          ))
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Too many day cards to show inline, so split into one box per month;
+  // clicking a box opens just that month's days in a modal.
+  const months = Array.from(
+    { length: Math.ceil(fields.length / DAYS_PER_MONTH_BOX) },
+    (_, i) => {
+      const start = i * DAYS_PER_MONTH_BOX
+      const end = Math.min(start + DAYS_PER_MONTH_BOX, fields.length)
+      return { index: i, start, end }
+    }
+  )
+  const openMonth = openMonthIndex != null ? months[openMonthIndex] : undefined
+
+  return (
+    <>
+      <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+        {months.map((month) => (
+          <Button
+            key={month.index}
+            type='button'
+            variant='outline'
+            onClick={() => setOpenMonthIndex(month.index)}
+            disabled={disabled}
+            className='h-auto flex-col gap-0.5 px-3 py-4 text-sm'
+          >
+            <span className='font-medium'>Month {month.index + 1}</span>
+            <span className='text-xs text-muted-foreground'>
+              Days {month.start + 1}–{month.end}
+            </span>
+          </Button>
+        ))}
+      </div>
+      <Dialog
+        open={openMonth != null}
+        onOpenChange={(open) => !open && setOpenMonthIndex(null)}
+      >
+        <DialogContent className='max-w-3xl'>
+          <DialogHeader>
+            <DialogTitle>
+              Month {openMonth ? openMonth.index + 1 : ''}
+            </DialogTitle>
+          </DialogHeader>
+          {openMonth && (
+            <div className='space-y-2'>
+              {isCustomShifts && !disabled && <PatternDragHint />}
+              <div className='grid max-h-[65vh] grid-cols-3 gap-2 overflow-y-auto pe-1 sm:grid-cols-7'>
+                {fields
+                  .slice(openMonth.start, openMonth.end)
+                  .map((field, i) => (
+                    <PatternDayCard
+                      key={field.id}
+                      index={openMonth.start + i}
+                      shiftOptions={shiftOptions}
+                      disabled={disabled}
+                      isCustomShifts={isCustomShifts}
+                      reorder={reorder}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+type PatternDayCardProps = {
+  index: number
+  shiftOptions: { value: string; label: string }[]
+  disabled?: boolean
+  // "Custom alternate" only — see `PatternDayGrid`/`usePatternReorder`.
+  isCustomShifts?: boolean
+  reorder?: PatternReorder
+}
+
+function PatternDayCard({
+  index,
+  shiftOptions,
+  disabled,
+  isCustomShifts,
+  reorder,
+}: PatternDayCardProps) {
+  const { control, setValue } = useFormContext<Schedule>()
+  const shifts = useShiftsStore((s) => s.shifts)
+  const isOff = useWatch({ control, name: `pattern.${index}.is_off` })
+  const shiftId = useWatch({ control, name: `pattern.${index}.shift_id` }) as
+    | string
+    | undefined
+  const value = !isOff && shiftId ? shiftId : 'off'
+  const items = [{ value: 'off', label: 'Off' }, ...shiftOptions]
+
+  const assignedShift = shiftId ? shifts.find((s) => s.id === shiftId) : null
+  const Icon = assignedShift
+    ? SHIFT_ICON_COMPONENTS[assignedShift.icon]
+    : undefined
+  if (isCustomShifts && reorder) {
+    const isDragging = reorder.draggingIndex === index
+    const dropSide =
+      reorder.dropTarget?.index === index ? reorder.dropTarget.side : null
+
+    return (
+      <Card
+        draggable={!disabled}
+        onDragStart={(e) => {
+          // Firefox requires data to be set for the drag to start at all.
+          e.dataTransfer.setData('text/plain', String(index))
+          e.dataTransfer.effectAllowed = 'move'
+          reorder.start(index)
+        }}
+        onDragOver={(e) => {
+          if (disabled) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          const rect = e.currentTarget.getBoundingClientRect()
+          const side =
+            e.clientX - rect.left < rect.width / 2 ? 'before' : 'after'
+          reorder.hover(index, side)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          if (disabled) return
+          reorder.drop()
+        }}
+        onDragEnd={() => reorder.end()}
+        className={cn(
+          'relative gap-1 py-2 transition-colors',
+          !disabled && 'cursor-grab active:cursor-grabbing',
+          isDragging && 'opacity-40'
         )}
-        <DirectionPreview />
+      >
+        {dropSide && (
+          <span
+            className={cn(
+              'absolute inset-y-0 z-10 w-0.5 rounded-full bg-primary',
+              dropSide === 'before' ? '-left-1.5' : '-right-1.5'
+            )}
+          />
+        )}
+        <CardContent className='flex min-h-8 items-center justify-center gap-1 px-2'>
+          {assignedShift && (
+            <>
+              <ShiftSwatch shift={assignedShift} />
+              {Icon && <Icon className='size-3 shrink-0' />}
+            </>
+          )}
+          <p className='truncate text-center text-xs'>
+            {assignedShift ? assignedShift.name : `Day ${index + 1}`}
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className='gap-1 py-2'>
+      <CardContent className='space-y-1 px-2'>
+        <div className='flex min-h-4 items-center justify-center gap-1'>
+          {assignedShift && (
+            <>
+              <ShiftSwatch shift={assignedShift} />
+              {Icon && <Icon className='size-3 shrink-0' />}
+            </>
+          )}
+          <p className='truncate text-center text-xs text-muted-foreground'>
+            {assignedShift
+              ? assignedShift.name
+              : isOff
+                ? 'Off'
+                : `Day ${index + 1}`}
+          </p>
+        </div>
+        <SelectDropdown
+          isControlled
+          defaultValue={value}
+          onValueChange={(v) => {
+            if (v === 'off') {
+              setValue(`pattern.${index}.is_off`, true, {
+                shouldValidate: true,
+              })
+              setValue(`pattern.${index}.shift_id`, undefined, {
+                shouldValidate: true,
+              })
+            } else {
+              setValue(`pattern.${index}.is_off`, false, {
+                shouldValidate: true,
+              })
+              setValue(`pattern.${index}.shift_id`, v, {
+                shouldValidate: true,
+              })
+            }
+          }}
+          items={items}
+          disabled={disabled}
+          className='h-8 text-xs'
+        />
       </CardContent>
     </Card>
   )
 }
 
-type PatternRowProps = {
-  index: number
-  blockOptions: { value: string; label: string }[]
+// A preset only names shift *slots* (first selected shift, second, ...), so
+// it's offered once enough shifts are selected to fill them.
+function PatternPresetPicker({
+  shiftIds,
+  disabled,
+  onApply,
+}: {
+  shiftIds: string[]
   disabled?: boolean
-}
-
-function PatternRow({ index, blockOptions, disabled }: PatternRowProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { control, setValue } = useFormContext<any>()
-  const isOff = useWatch({ control, name: `pattern.${index}.is_off` })
+  onApply: (presetId: string) => void
+}) {
+  const [presetId, setPresetId] = useState<string>('')
 
   return (
-    <div className='flex items-center gap-3'>
-      <span className='w-14 shrink-0 text-sm text-muted-foreground'>
-        Day {index + 1}
-      </span>
-      <FormField
-        control={control}
-        name={`pattern.${index}.block_id`}
-        render={({ field }) => (
-          <FormItem className='flex-1'>
-            <SelectDropdown
-              isControlled
-              defaultValue={field.value}
-              onValueChange={field.onChange}
-              placeholder='Select shift'
-              items={blockOptions}
-              disabled={disabled || !!isOff}
-            />
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={control}
-        name={`pattern.${index}.is_off`}
-        render={({ field }) => (
-          <FormItem className='flex items-center gap-2 space-y-0'>
-            <FormControl>
-              <Checkbox
-                checked={!!field.value}
-                disabled={disabled}
-                onCheckedChange={(checked) => {
-                  field.onChange(!!checked)
-                  if (checked) setValue(`pattern.${index}.block_id`, undefined)
-                }}
-              />
-            </FormControl>
-            <FormLabel className='cursor-pointer text-sm font-normal'>
-              OFF by default
-            </FormLabel>
-          </FormItem>
-        )}
-      />
-    </div>
+    <FormItem>
+      <FormLabel>Start from a known pattern</FormLabel>
+      <Select
+        value={presetId}
+        onValueChange={(value) => {
+          // Radix re-emits an empty value when a Select is set programmatically.
+          if (!value) return
+          setPresetId(value)
+          onApply(value)
+        }}
+        disabled={disabled || shiftIds.length === 0}
+      >
+        <SelectTrigger>
+          <SelectValue
+            placeholder={
+              shiftIds.length === 0
+                ? 'Select shifts first'
+                : 'Optional — pick a ready-made roster'
+            }
+          />
+        </SelectTrigger>
+        <SelectContent>
+          {ROTATION_PRESET_GROUPS.map((group) => {
+            const presets = ROTATION_PRESETS.filter((p) => p.group === group)
+            if (presets.length === 0) return null
+            return (
+              <SelectGroup key={group}>
+                <SelectLabel>{group}</SelectLabel>
+                {presets.map((preset) => {
+                  const cards = preset.buildCards(shiftIds.length)
+                  const shortOfShifts = shiftIds.length < preset.minShifts
+                  return (
+                    <SelectItem
+                      key={preset.id}
+                      value={preset.id}
+                      disabled={shortOfShifts}
+                    >
+                      {preset.label} · {cards.length} days
+                      {shortOfShifts
+                        ? ` · needs ${preset.minShifts} shifts`
+                        : ''}
+                    </SelectItem>
+                  )
+                })}
+              </SelectGroup>
+            )
+          })}
+        </SelectContent>
+      </Select>
+      {presetId && (
+        <p className='text-xs text-muted-foreground'>
+          {getRotationPreset(presetId)?.description} Suggested crew size:{' '}
+          {getRotationPreset(presetId)?.suggestedCrews}. Every card stays
+          editable below.
+        </p>
+      )}
+    </FormItem>
   )
 }

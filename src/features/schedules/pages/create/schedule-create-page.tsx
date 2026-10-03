@@ -1,6 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { toast } from 'sonner'
+import { generateId } from '@/lib/id'
 import { Button } from '@/components/ui/button'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { Header } from '@/components/layout/header'
@@ -11,7 +12,6 @@ import { ThemeSwitch } from '@/components/theme-switch'
 import { ScheduleForm } from '../../components/schedule-form/schedule-form'
 import { type Schedule } from '../../data/schema'
 import { useSchedulesStore } from '../../stores/schedules-store'
-import { generateId } from '../../utils'
 
 export function ScheduleCreatePage() {
   const navigate = useNavigate()
@@ -39,14 +39,12 @@ export function ScheduleCreatePage() {
               <ArrowLeft className='size-4' /> Back to schedules
             </Link>
           </Button>
-          <h2 className='text-2xl font-bold tracking-tight'>
-            Create schedule
-          </h2>
+          <h2 className='text-2xl font-bold tracking-tight'>Create schedule</h2>
           <p className='text-muted-foreground'>
             Choose a schedule type and fill in the details below.
           </p>
         </div>
-        <ScheduleForm onSubmit={handleSubmit} />
+        <ScheduleForm onSubmit={handleSubmit} resetLaterStepsOnChange />
       </Main>
     </>
   )

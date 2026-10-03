@@ -1,0 +1,217 @@
+import {
+  type AttendanceType,
+  ATTENDANCE_TYPES,
+  BREAK_DURATION_UNITS,
+  BREAK_PAY_TYPES,
+  BREAK_TYPES,
+  type BreakDurationUnit,
+  type BreakPayType,
+  type BreakType,
+  COMPARISON_OPERATORS,
+  type ComparisonOperator,
+  type HolidayAttendanceType,
+  type HolidayWorkMode,
+  HOLIDAY_WORK_MODES,
+  type HolidayWorkPolicyType,
+  MISSED_PUNCH_DEDUCTION_UNITS,
+  MISSED_PUNCH_PERIOD_UNITS,
+  type MissedPunchDeductionUnit,
+  type MissedPunchPeriodUnit,
+  type PolicyType,
+  POLICY_TYPES,
+} from './schema'
+
+const POLICY_TYPE_LABELS: Record<PolicyType, string> = {
+  tardy: 'Tardy',
+  departure: 'Departure',
+  missed_punch_error: 'Missed Punch Error',
+  working_on_day_off: 'Working on Day Off',
+  working_on_public_holiday: 'Working on Public Holiday',
+  overtime: 'Overtime',
+  break_time: 'Break Time',
+}
+
+export const POLICY_TYPE_OPTIONS = POLICY_TYPES.map((value) => ({
+  value,
+  label: POLICY_TYPE_LABELS[value],
+}))
+
+export function getPolicyTypeLabel(type: PolicyType | undefined): string {
+  return type ? POLICY_TYPE_LABELS[type] : '—'
+}
+
+const ATTENDANCE_TYPE_LABELS: Record<AttendanceType, string> = {
+  absence: 'Absence',
+  presence: 'Presence',
+  overtime: 'Overtime',
+  grace_period: 'Grace Period',
+  deduction: 'Deduction',
+  tracked_hours: 'Tracked Hours',
+  tolerance_period: 'Tolerance Period',
+}
+
+export const ATTENDANCE_TYPE_OPTIONS = ATTENDANCE_TYPES.map((value) => ({
+  value,
+  label: ATTENDANCE_TYPE_LABELS[value],
+}))
+
+export function getAttendanceTypeLabel(
+  type: AttendanceType | undefined
+): string {
+  return type ? ATTENDANCE_TYPE_LABELS[type] : '—'
+}
+
+const HOLIDAY_WORK_MODE_LABELS: Record<HolidayWorkMode, string> = {
+  normal: 'Normal work',
+  overtime: 'Apply overtime',
+  substitute: 'Substitute day off',
+}
+
+export const HOLIDAY_WORK_MODE_OPTIONS = HOLIDAY_WORK_MODES.map((value) => ({
+  value,
+  label: HOLIDAY_WORK_MODE_LABELS[value],
+}))
+
+export function getHolidayWorkModeLabel(mode: HolidayWorkMode): string {
+  return HOLIDAY_WORK_MODE_LABELS[mode]
+}
+
+const HOLIDAY_ATTENDANCE_TYPE_LABELS: Record<HolidayAttendanceType, string> = {
+  paid: 'Paid',
+  keep_track_overtime: 'Keep track overtime',
+  leave: 'Leave',
+  overtime: 'Overtime',
+}
+
+export function getHolidayAttendanceTypeLabel(
+  type: HolidayAttendanceType | undefined
+): string {
+  return type ? HOLIDAY_ATTENDANCE_TYPE_LABELS[type] : '—'
+}
+
+// Normal work and day-off overtime (which books an hourly rate instead)
+// return an empty list — every other combination of type and mode has options.
+export function getHolidayAttendanceOptions(
+  policyType: HolidayWorkPolicyType,
+  workMode: HolidayWorkMode
+): { value: HolidayAttendanceType; label: string }[] {
+  const build = (values: HolidayAttendanceType[]) =>
+    values.map((value) => ({
+      value,
+      label: HOLIDAY_ATTENDANCE_TYPE_LABELS[value],
+    }))
+
+  if (workMode === 'overtime') {
+    return policyType === 'working_on_public_holiday'
+      ? build(['paid', 'keep_track_overtime'])
+      : []
+  }
+  if (workMode === 'substitute') {
+    return policyType === 'working_on_public_holiday'
+      ? build(['leave'])
+      : build(['overtime', 'leave'])
+  }
+  return []
+}
+
+// The attendance value a case starts on — its first offered option, or
+// undefined when the case offers none (normal work, and day-off overtime).
+export function getDefaultHolidayAttendance(
+  policyType: HolidayWorkPolicyType,
+  workMode: HolidayWorkMode
+): HolidayAttendanceType | undefined {
+  return getHolidayAttendanceOptions(policyType, workMode)[0]?.value
+}
+
+const COMPARISON_OPERATOR_LABELS: Record<ComparisonOperator, string> = {
+  eq: 'Is Equal',
+  gt: 'Is Greater Than',
+  lt: 'Is Less Than',
+  gte: 'Is Greater Than or Equal',
+  lte: 'Is Less Than or Equal',
+}
+
+export const COMPARISON_OPERATOR_OPTIONS = COMPARISON_OPERATORS.map(
+  (value) => ({ value, label: COMPARISON_OPERATOR_LABELS[value] })
+)
+
+export function getComparisonOperatorLabel(
+  operator: ComparisonOperator | undefined
+): string {
+  return operator ? COMPARISON_OPERATOR_LABELS[operator] : '—'
+}
+
+const MISSED_PUNCH_PERIOD_UNIT_LABELS: Record<MissedPunchPeriodUnit, string> = {
+  days: 'Days',
+  months: 'Month',
+}
+
+export const MISSED_PUNCH_PERIOD_UNIT_OPTIONS = MISSED_PUNCH_PERIOD_UNITS.map(
+  (value) => ({ value, label: MISSED_PUNCH_PERIOD_UNIT_LABELS[value] })
+)
+
+export function getMissedPunchPeriodUnitLabel(
+  unit: MissedPunchPeriodUnit
+): string {
+  return MISSED_PUNCH_PERIOD_UNIT_LABELS[unit]
+}
+
+const MISSED_PUNCH_DEDUCTION_UNIT_LABELS: Record<
+  MissedPunchDeductionUnit,
+  string
+> = {
+  hours: 'Hours',
+  half_day: 'Half day',
+  full_day: 'Full day',
+}
+
+export const MISSED_PUNCH_DEDUCTION_UNIT_OPTIONS =
+  MISSED_PUNCH_DEDUCTION_UNITS.map((value) => ({
+    value,
+    label: MISSED_PUNCH_DEDUCTION_UNIT_LABELS[value],
+  }))
+
+export function getMissedPunchDeductionUnitLabel(
+  unit: MissedPunchDeductionUnit
+): string {
+  return MISSED_PUNCH_DEDUCTION_UNIT_LABELS[unit]
+}
+
+const BREAK_TYPE_LABELS: Record<BreakType, string> = {
+  fixed: 'Fixed',
+  manual: 'Manual',
+  dynamic: 'Dynamic',
+  range: 'Range',
+}
+
+export const BREAK_TYPE_OPTIONS = BREAK_TYPES.map((value) => ({
+  value,
+  label: BREAK_TYPE_LABELS[value],
+}))
+
+export function getBreakTypeLabel(type: BreakType): string {
+  return BREAK_TYPE_LABELS[type]
+}
+
+const BREAK_PAY_TYPE_LABELS: Record<BreakPayType, string> = {
+  paid: 'Paid',
+  unpaid: 'Unpaid',
+}
+
+export const BREAK_PAY_TYPE_OPTIONS = BREAK_PAY_TYPES.map((value) => ({
+  value,
+  label: BREAK_PAY_TYPE_LABELS[value],
+}))
+
+export function getBreakPayTypeLabel(type: BreakPayType): string {
+  return BREAK_PAY_TYPE_LABELS[type]
+}
+
+const BREAK_DURATION_UNIT_LABELS: Record<BreakDurationUnit, string> = {
+  minutes: 'Minutes',
+  hours_minutes: 'Hours & minutes',
+}
+
+export const BREAK_DURATION_UNIT_OPTIONS = BREAK_DURATION_UNITS.map(
+  (value) => ({ value, label: BREAK_DURATION_UNIT_LABELS[value] })
+)

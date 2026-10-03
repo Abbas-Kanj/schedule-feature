@@ -1,20 +1,40 @@
 import { type ReactNode } from 'react'
 import { type Control, useWatch } from 'react-hook-form'
+import { TriangleAlert } from 'lucide-react'
+import { plural } from '@/lib/plural'
+import { useTimeFormat } from '@/lib/time-format'
+import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useEmployeesStore } from '@/features/employees/stores/employees-store'
+import { getEmployeeFullName } from '@/features/employees/utils'
+import { ShiftDaysTable } from '@/features/shifts/components/shift-days-table'
+import { ShiftSwatch } from '@/features/shifts/components/shift-swatch'
 import {
-  BADGE_COLOR_OPTIONS,
-  CYCLE_LENGTH_UNIT_OPTIONS,
+  SHIFT_BADGE_COLOR_OPTIONS,
+  SHIFT_ICON_COMPONENTS,
+} from '@/features/shifts/data/data'
+import { type Shift } from '@/features/shifts/data/schema'
+import { useShiftsStore } from '@/features/shifts/stores/shifts-store'
+import { useTeamsStore } from '@/features/teams/stores/teams-store'
+import {
   CYCLE_TYPE_OPTIONS,
   MONTHS,
-  POLICY_TYPE_OPTIONS,
-  RECURRENCE_END_TYPE_OPTIONS,
-  RECURRENCE_FREQUENCY_OPTIONS,
   REGULAR_TYPE_OPTIONS,
-  ROTATE_TYPE_OPTIONS,
-  SCHEDULE_ICON_OPTIONS,
   SCHEDULE_TYPES,
 } from '../../data/data'
-import { calculateHours } from '../../utils'
+import {
+  type CrewKind,
+  type DailySchedule,
+  type EndSettings,
+  type OccurrenceRule,
+  type RegularSchedule,
+  type Schedule,
+} from '../../data/schema'
+import { crewsOnMultipleShifts, shiftCrewIds } from '../../fixed-schedule'
+import { occurrenceLabels } from '../../occurrence-pattern'
+import { calculateHours, formatTimes } from '../../utils'
+import { AssignToStatusNote } from './assign-to-status-note'
+import { ScheduleCalendarPreview } from './schedule-calendar-preview'
 
 function SummarySection({
   title,
@@ -24,320 +44,358 @@ function SummarySection({
   children: ReactNode
 }) {
   return (
-    <Card className='gap-3 py-4'>
+    <Card className='gap-2 py-3'>
       <CardHeader className='px-4'>
-        <CardTitle className='text-sm font-medium'>{title}</CardTitle>
+        <CardTitle className='text-sm font-semibold'>{title}</CardTitle>
       </CardHeader>
-      <CardContent className='space-y-2 px-4'>{children}</CardContent>
+      <CardContent className='space-y-1.5 px-4'>{children}</CardContent>
     </Card>
   )
 }
 
-function SummaryRow({ label, value }: { label: string; value: ReactNode }) {
+// `inline` sits the value right after its label instead of the opposite edge.
+function SummaryRow({
+  label,
+  value,
+  inline,
+}: {
+  label: string
+  value: ReactNode
+  inline?: boolean
+}) {
+  if (inline) {
+    return (
+      <div className='flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm'>
+        <span className='text-muted-foreground'>{label}</span>
+        <span className='font-medium'>{value || '—'}</span>
+      </div>
+    )
+  }
   return (
     <div className='flex items-center justify-between gap-4 text-sm'>
       <span className='text-muted-foreground'>{label}</span>
-      <span className='font-medium'>{value || '—'}</span>
+      <span className='text-end font-medium'>{value || '—'}</span>
     </div>
   )
 }
 
-function formatTimes(times?: { from_time: string; to_time: string }[]) {
-  if (!times?.length) return '—'
-  return times.map((t) => `${t.from_time}–${t.to_time}`).join(', ')
+// One line covers all end-settings shapes.
+function formatEndSettings(
+  endSettings: EndSettings | undefined
+): string | undefined {
+  if (!endSettings?.end_type) return undefined
+  if (endSettings.end_type === 'after_occurrences') {
+    return endSettings.end_occurrences
+      ? `After ${endSettings.end_occurrences} occurrence(s)`
+      : undefined
+  }
+  if (endSettings.end_type === 'on_date') {
+    return endSettings.end_date ? `On ${endSettings.end_date}` : undefined
+  }
+  return 'Never ends'
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function DailySummary({ values }: { values: any }) {
-  const typeLabel =
-    SCHEDULE_TYPES.find((t) => t.value === values.type)?.label ?? values.type
-  const employees = values.employees ?? []
+function BasicsSummary({ values }: { values: Schedule }) {
+  const regular = values.parent_type === 'regular' ? values : undefined
+  const isRegular = !!regular
+  const typeLabel = isRegular
+    ? REGULAR_TYPE_OPTIONS.find((o) => o.value === values.type)?.label
+    : (SCHEDULE_TYPES.find((t) => t.value === values.type)?.label ??
+      values.type)
+  const rotateTypeLabel =
+    values.type === 'rotate'
+      ? CYCLE_TYPE_OPTIONS.find((o) => o.value === values.cycle_type)?.label
+      : undefined
+  const employees =
+    values.parent_type === 'daily' ? (values.employees ?? []) : []
 
   return (
-    <SummarySection title='Type'>
-      <SummaryRow label='Schedule type' value={typeLabel} />
-      <SummaryRow
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        value={employees.map((e: any) => e.label).join(', ')}
-        label='Employees'
-      />
-
-      {(values.type === 'weekly' || values.type === 'weekly_one') && (
-        <div className='space-y-1 border-t pt-2'>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {(values.days ?? []).map((d: any) => (
-            <div
-              key={d.day}
-              className='flex items-center justify-between text-sm'
-            >
-              <span className='capitalize'>{d.day}</span>
-              <span className='text-muted-foreground'>
-                {formatTimes(d.times)} · {calculateHours(d.times ?? [])}h
-              </span>
-            </div>
-          ))}
-        </div>
+    <SummarySection title='Basics'>
+      <SummaryRow inline label='Name' value={values.name} />
+      <SummaryRow inline label='Description' value={values.description} />
+      <SummaryRow inline label='Type' value={isRegular ? 'Regular' : 'Daily'} />
+      <SummaryRow inline label='Schedule type' value={typeLabel} />
+      {isRegular && values.type === 'rotate' && (
+        <SummaryRow inline label='Rotate type' value={rotateTypeLabel} />
       )}
-
-      {values.type === 'monthly' && (
-        <div className='space-y-3 border-t pt-2'>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {(values.months ?? []).map((m: any) => {
-            const monthLabel = MONTHS.find(
-              (mo) => Number(mo.value) === m.month
-            )?.label
-            return (
-              <div key={m.month}>
-                <p className='text-sm font-medium'>{monthLabel}</p>
-                <div className='space-y-1 ps-2'>
-                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                  {(m.days ?? []).map((d: any) => (
-                    <div
-                      key={d.day}
-                      className='flex items-center justify-between text-sm'
-                    >
-                      <span className='text-muted-foreground'>Day {d.day}</span>
-                      <span className='text-muted-foreground'>
-                        {formatTimes(d.times)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+      {isRegular && (
+        <>
+          <SummaryRow inline label='Start date' value={regular?.start_date} />
+          <SummaryRow
+            inline
+            label='Ends'
+            value={formatEndSettings(regular?.end_settings)}
+          />
+        </>
+      )}
+      {!isRegular && (
+        <SummaryRow
+          inline
+          value={employees.map((e) => e.label).join(', ')}
+          label='Employees'
+        />
       )}
     </SummarySection>
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function RegularBasicsSummary({ values }: { values: any }) {
-  const typeLabel = REGULAR_TYPE_OPTIONS.find(
-    (o) => o.value === values.type
-  )?.label
-  const badgeLabel = BADGE_COLOR_OPTIONS.find(
-    (o) => o.value === values.badge_color
-  )?.label
-  const iconLabel = SCHEDULE_ICON_OPTIONS.find(
-    (o) => o.value === values.icon
-  )?.label
-  const policyLabel = POLICY_TYPE_OPTIONS.find(
-    (o) => o.value === values.policy_type
-  )?.label
+// Legacy `parent_type: 'daily'` schedules only — view/edit of pre-existing
+// data, the wizard can't create these anymore.
+function DailyDaysSummary({ values }: { values: DailySchedule }) {
+  const formatTime = useTimeFormat()
+
+  if (values.type === 'weekly' || values.type === 'weekly_one') {
+    return (
+      <SummarySection title='Days'>
+        {(values.days ?? []).map((d) => (
+          <SummaryRow
+            key={d.day}
+            label={d.day.charAt(0).toUpperCase() + d.day.slice(1)}
+            value={`${formatTimes(d.times, formatTime)} · ${calculateHours(
+              d.times ?? []
+            )}h`}
+          />
+        ))}
+      </SummarySection>
+    )
+  }
 
   return (
-    <SummarySection title='Type'>
-      <SummaryRow label='Schedule type' value={typeLabel} />
-      <SummaryRow label='Badge color' value={badgeLabel} />
-      <SummaryRow label='Icon' value={iconLabel} />
-      <SummaryRow
-        label='Active status'
-        value={values.is_active ? 'Active' : 'Inactive'}
-      />
-      <SummaryRow label='Policy type' value={policyLabel} />
-      <SummaryRow label='Start date' value={values.start_date} />
-    </SummarySection>
-  )
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ShiftDefinitionSummary({ values }: { values: any }) {
-  return (
-    <SummarySection title='Shifts'>
-      <SummaryRow label='Nb. of shifts' value={values.nb_of_shifts} />
-      <SummaryRow
-        label='Temporary schedule'
-        value={
-          values.temporary_schedule
-            ? (values.temporary_schedule_label ?? 'Yes')
-            : 'No'
-        }
-      />
-
-      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-      {(values.shifts ?? []).map((shift: any, i: number) => (
-        <div key={shift.id ?? i} className='space-y-1 border-t pt-2'>
-          <p className='text-sm font-medium'>
-            {shift.name || `Shift ${i + 1}`}{' '}
-            <span className='font-normal text-muted-foreground'>
-              {shift.short_code && `(${shift.short_code})`}
-            </span>
-          </p>
-          <div className='space-y-1 ps-2'>
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            {(shift.days ?? []).map((d: any) => (
-              <div
+    <SummarySection title='Months'>
+      {(values.months ?? []).map((m) => {
+        const monthLabel = MONTHS.find(
+          (mo) => Number(mo.value) === m.month
+        )?.label
+        return (
+          <div
+            key={m.month}
+            className='space-y-1 border-t pt-1.5 first:border-t-0 first:pt-0'
+          >
+            <p className='text-sm font-medium'>{monthLabel}</p>
+            {(m.days ?? []).map((d) => (
+              <SummaryRow
                 key={d.day}
-                className='flex items-center justify-between text-sm'
-              >
-                <span className='text-muted-foreground capitalize'>
-                  {d.day}
-                </span>
-                <span className='text-muted-foreground'>
-                  {formatTimes([d.time])}
-                </span>
-              </div>
+                label={`Day ${d.day}`}
+                value={formatTimes(d.times, formatTime)}
+              />
             ))}
           </div>
-          {shift.overnight && (
-            <p className='text-xs text-muted-foreground'>Overnight shift</p>
-          )}
-        </div>
-      ))}
+        )
+      })}
     </SummarySection>
   )
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function RotateSummary({ values }: { values: any }) {
-  const cycleTypeLabel = CYCLE_TYPE_OPTIONS.find(
-    (o) => o.value === values.cycle_type
-  )?.label
-  const cycleUnitLabel = CYCLE_LENGTH_UNIT_OPTIONS.find(
-    (o) => o.value === values.cycle_length?.unit
-  )?.label
-  const rotateTypeLabel = ROTATE_TYPE_OPTIONS.find(
-    (o) => o.value === values.rotate_type
-  )?.label
+// Mirrors the "Shifts" step's own display — `ShiftDaysTable` collapses
+// identical consecutive days into "Mon → Fri".
+function ShiftsSummary({ values }: { values: RegularSchedule }) {
+  const shifts = useShiftsStore((s) => s.shifts)
+  const formatTime = useTimeFormat()
+  const resolvedShifts: Shift[] = (values.shift_ids ?? [])
+    .map((id) => shifts.find((s) => s.id === id))
+    .filter((s): s is Shift => s !== undefined)
 
   return (
-    <SummarySection title='Rotate config'>
-      <SummaryRow label='Cycle type' value={cycleTypeLabel} />
-      <SummaryRow
-        label='Cycle length'
-        value={
-          values.cycle_length
-            ? `${cycleUnitLabel} · ${values.cycle_length.days} day(s)`
-            : undefined
-        }
-      />
-      <SummaryRow label='Rotate type' value={rotateTypeLabel} />
-      <SummaryRow label='Shift block' value={values.shift_block} />
-      <SummaryRow
-        label='Shift length'
-        value={
-          values.shift_length_hours
-            ? `${values.shift_length_hours}h/day`
-            : undefined
-        }
-      />
+    <SummarySection title={`Shifts (${resolvedShifts.length})`}>
+      {resolvedShifts.length === 0 && (
+        <p className='text-sm text-muted-foreground'>No shifts selected</p>
+      )}
+      {resolvedShifts.map((shift, i) => {
+        const Icon = SHIFT_ICON_COMPONENTS[shift.icon]
+        const color = SHIFT_BADGE_COLOR_OPTIONS.find(
+          (o) => o.value === shift.badge_color
+        )
+        const enabledDays = shift.days.filter((d) => d.enabled)
+        const totalHours = enabledDays.reduce(
+          (sum, d) => sum + calculateHours(d.times),
+          0
+        )
+        const hasOvernight = shift.days.some((d) =>
+          d.times.some((t) => t.overnight)
+        )
 
-      {(values.blocks?.length ?? 0) > 0 && (
-        <div className='space-y-1 border-t pt-2'>
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {values.blocks.map((b: any) => (
-            <div
-              key={b.id}
-              className='flex items-center justify-between text-sm'
-            >
-              <span>{b.label}</span>
-              <span className='text-muted-foreground'>
-                {formatTimes([b.time])}
+        return (
+          <div
+            key={shift.id ?? i}
+            className='space-y-1.5 border-t pt-2 first:border-t-0 first:pt-0'
+          >
+            <div className='flex items-center gap-2'>
+              <span
+                className={cn(
+                  'size-2 shrink-0 rounded-full',
+                  color?.swatchClassName
+                )}
+              />
+              {Icon && (
+                <Icon className='size-4 shrink-0 text-muted-foreground' />
+              )}
+              <span className='truncate text-sm font-medium'>
+                {shift.name || `Shift ${i + 1}`}
+              </span>
+              {shift.short_code && (
+                <span className='shrink-0 text-xs text-muted-foreground'>
+                  ({shift.short_code})
+                </span>
+              )}
+              <span className='ms-auto shrink-0 text-xs text-muted-foreground'>
+                {totalHours ? `${totalHours}h` : '—'}
               </span>
             </div>
-          ))}
-        </div>
-      )}
+            {enabledDays.length ? (
+              <ShiftDaysTable days={enabledDays} formatTime={formatTime} />
+            ) : (
+              <p className='text-sm text-muted-foreground'>No enabled days</p>
+            )}
+            {hasOvernight && (
+              <p className='text-xs text-muted-foreground'>Check next day</p>
+            )}
+          </div>
+        )
+      })}
     </SummarySection>
   )
 }
 
-function RegularSummary({
+// Rotate — who was picked, plus a crew count rather than a copy of the
+// coverage grid. Fixed — who works each shift.
+function AssignToSummary({
   values,
 }: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  values: any
+  values: Extract<RegularSchedule, { type: 'fixed' | 'rotate' }>
 }) {
-  const recurrence = values.recurrence
-  const frequencyLabel = recurrence
-    ? RECURRENCE_FREQUENCY_OPTIONS.find((o) => o.value === recurrence.frequency)
-        ?.label
-    : undefined
-  const endTypeLabel = recurrence
-    ? RECURRENCE_END_TYPE_OPTIONS.find((o) => o.value === recurrence.end_type)
-        ?.label
-    : undefined
+  const teams = useTeamsStore((s) => s.teams)
+  const employees = useEmployeesStore((s) => s.employees)
+  const shifts = useShiftsStore((s) => s.shifts)
+  const kind: CrewKind = values.crew_kind ?? 'team'
+  const isTeam = kind === 'team'
+  const nameOf = (id: string) =>
+    isTeam
+      ? teams.find((team) => team.id === id)?.name
+      : (() => {
+          const employee = employees.find((e) => e.id === id)
+          return employee ? getEmployeeFullName(employee) : undefined
+        })()
+  const names = (ids: string[]) => ids.map((id) => nameOf(id) ?? id).join(', ')
+
+  if (values.type === 'fixed') {
+    const shared = crewsOnMultipleShifts(values.shift_assignments, kind)
+    return (
+      <SummarySection title='Assign to'>
+        {(values.shift_ids ?? []).map((shiftId) => (
+          <SummaryRow
+            key={shiftId}
+            inline
+            label={shifts.find((s) => s.id === shiftId)?.name ?? 'Shift'}
+            value={names(shiftCrewIds(values.shift_assignments, shiftId, kind))}
+          />
+        ))}
+        {shared.size > 0 && (
+          <p className='flex items-center gap-1.5 text-sm text-amber-600 dark:text-amber-400'>
+            <TriangleAlert className='size-4 shrink-0' />
+            {plural(shared.size, isTeam ? 'team' : 'employee')} on more than one
+            shift: {names([...shared.keys()])}
+          </p>
+        )}
+      </SummarySection>
+    )
+  }
 
   return (
-    <>
-      <RegularBasicsSummary values={values} />
+    <SummarySection title='Assign to'>
+      <SummaryRow
+        inline
+        label={isTeam ? 'Teams' : 'Employees'}
+        value={names(values.crew_ids ?? [])}
+      />
+      <AssignToStatusNote dayCoverage={values.day_coverage} />
+    </SummarySection>
+  )
+}
 
-      {values.type === 'rotate' ? (
-        <RotateSummary values={values} />
-      ) : (
-        <ShiftDefinitionSummary values={values} />
-      )}
+function describeRule(rule: OccurrenceRule): string {
+  const interval = rule.interval || 1
+  const unit =
+    rule.frequency === 'daily'
+      ? 'day'
+      : rule.frequency === 'weekly'
+        ? 'week'
+        : 'month'
+  const every = interval === 1 ? `Every ${unit}` : `Every ${interval} ${unit}s`
+  if (rule.frequency === 'daily') return every
+  const days = occurrenceLabels(rule).join(', ')
+  return days ? `${every} on ${days}` : every
+}
 
-      {recurrence && (
-        <SummarySection title='Recurrence'>
-          <SummaryRow label='Frequency' value={frequencyLabel} />
-          <SummaryRow label='Repeat every' value={recurrence.interval} />
-          {(recurrence.frequency === 'daily' ||
-            recurrence.frequency === 'weekly') && (
-            <SummaryRow
-              label='Repeat on'
-              value={(recurrence.weekdays ?? [])
-                .map((d: string) => d.charAt(0).toUpperCase() + d.slice(1))
-                .join(', ')}
-            />
-          )}
-          {recurrence.frequency === 'monthly' && (
-            <SummaryRow
-              label='Day of month'
-              value={
-                recurrence.day_of_month_from != null
-                  ? `${recurrence.day_of_month_from}–${recurrence.day_of_month_to}`
-                  : undefined
-              }
-            />
-          )}
-          <SummaryRow label='End' value={endTypeLabel} />
-          {recurrence.end_type === 'after_occurrences' && (
-            <SummaryRow
-              label='Occurrences'
-              value={recurrence.end_occurrences}
-            />
-          )}
-          {recurrence.end_type === 'on_date' && (
-            <SummaryRow label='End date' value={recurrence.end_date} />
-          )}
-          <SummaryRow
-            label='Public holiday exception'
-            value={recurrence.exceptions?.public_holiday ? 'Yes' : 'No'}
-          />
-          <SummaryRow
-            label='Sick leave exception'
-            value={recurrence.exceptions?.sick_leave ? 'Yes' : 'No'}
-          />
-        </SummarySection>
-      )}
-    </>
+function OccurrenceSummary({
+  values,
+}: {
+  values: Extract<RegularSchedule, { type: 'fixed' }>
+}) {
+  const shifts = useShiftsStore((s) => s.shifts)
+  const rules = values.shift_occurrences ?? []
+  const exceptions = [
+    values.occurrence_exceptions?.public_holiday && 'Public holiday',
+    values.occurrence_exceptions?.sick_leave && 'Sick leave',
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  return (
+    <SummarySection title='Occurrence'>
+      {rules.map((rule) => {
+        const shift = shifts.find((s) => s.id === rule.shift_id)
+        return (
+          <div
+            key={rule.shift_id}
+            className='flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm'
+          >
+            <ShiftSwatch shift={shift} />
+            <span className='text-muted-foreground'>
+              {shift?.name ?? 'Shift'}
+            </span>
+            <span className='font-medium'>{describeRule(rule)}</span>
+          </div>
+        )
+      })}
+      <SummaryRow inline label='Exceptions' value={exceptions || 'None'} />
+    </SummarySection>
   )
 }
 
 type ScheduleSummaryProps = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  control: Control<any>
+  control: Control<Schedule>
 }
 
 export function ScheduleSummary({ control }: ScheduleSummaryProps) {
-  const values = useWatch({ control })
+  // Watched values are typed deep-partial, but every field is seeded from
+  // the type's defaults, so the record the summary reads is always whole.
+  const values = useWatch({ control }) as Schedule
 
   return (
-    <div className='space-y-4'>
-      <SummarySection title='Basics'>
-        <SummaryRow label='Name' value={values.name} />
-        <SummaryRow label='Description' value={values.description} />
-        <SummaryRow
-          label='Type'
-          value={values.parent_type === 'regular' ? 'Regular' : 'Daily'}
-        />
-      </SummarySection>
+    <div className='space-y-3'>
+      <BasicsSummary values={values} />
 
-      {values.parent_type === 'daily' && <DailySummary values={values} />}
-      {values.parent_type === 'regular' && <RegularSummary values={values} />}
+      {values.parent_type === 'daily' && <DailyDaysSummary values={values} />}
+
+      {values.parent_type === 'regular' && (
+        <>
+          <ShiftsSummary values={values} />
+          {values.type === 'fixed' && <OccurrenceSummary values={values} />}
+          {(values.type === 'rotate' || values.type === 'fixed') && (
+            <AssignToSummary values={values} />
+          )}
+          <SummarySection title='Calendar preview'>
+            {values.type === 'rotate' && !values.day_coverage?.length && (
+              // Without a placed roster there's only the template to walk.
+              <p className='text-xs text-muted-foreground'>
+                The pattern on real dates. Crews are placed on each shift on the
+                Assign to step; once they are, this shows who works what.
+              </p>
+            )}
+            <ScheduleCalendarPreview values={values} />
+          </SummarySection>
+        </>
+      )}
     </div>
   )
 }
